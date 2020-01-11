@@ -196,6 +196,11 @@ private:
 	unsigned int m_ssrcCandidateTimestamp;
 	std::map<unsigned int, int> m_loggedSsrcMap;
 	SipInfoRef m_lastSipInfo;
+
+        //
+     public:
+        CStdString ip;
+        CStdString ext;
 };
 typedef oreka::shared_ptr<VoIpSession> VoIpSessionRef;
 

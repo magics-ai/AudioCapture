@@ -184,6 +184,7 @@ public:
 	CStdString m_necOffHoldMarker;
 	int m_mtuMaxSize;
 	CStdString m_sipLocalPartyFieldName;
+        std::map<CStdString, CStdString> ip_exts;
 };
 
 //========================================

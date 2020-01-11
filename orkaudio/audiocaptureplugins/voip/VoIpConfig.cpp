@@ -16,6 +16,7 @@
 #include "Utils.h"
 #include "serializers/Serializer.h"
 #include "VoIpConfig.h"
+#include "Markup.h"
 
 VoIpConfigTopObjectRef g_VoIpConfigTopObjectRef;
 
@@ -122,7 +123,7 @@ void VoIpConfig::Reset() {
 	m_urlExtractorEnable = false;
 	m_urlExtractorPort = 9080;
 	m_urlExtractorEndpointIsSender =  true;
-	m_rtpMinAmountOfPacketsBeforeStart = 50;
+	m_rtpMinAmountOfPacketsBeforeStart = 2;
 	m_rtpBreakupOnStreamPause = false;
 	m_localPartyAddLocalIp = false;
 	m_rtpLogAllSsrc = false;
@@ -151,9 +152,11 @@ void VoIpConfig::Reset() {
 
 void VoIpConfig::Define(Serializer* s)
 {
+
 	AcpConfig::Define(s);
 
 	s->StringValue(DEVICE_PARAM, m_device);
+         
 	s->CsvValue("Devices", m_devices);
 	s->CsvValue("LanMasks", m_asciiLanMasks);
 	s->CsvValue("RtpTrackUsingIpAddresses", m_asciiRtpTrackUsingIpAddresses);
@@ -285,6 +288,24 @@ void VoIpConfig::Define(Serializer* s)
 	s->StringValue("SipNecOffHoldMarker",m_necOffHoldMarker); 
 	s->IntValue("MtuMaxSize", m_mtuMaxSize);
 	s->StringValue("SipLocalPartyFieldName", m_sipLocalPartyFieldName);
+        //read ip===ext
+        CMarkup mk;
+        bool b = mk.Load("/etc/orkaudio/config.xml");
+        if (!b) {
+          return;          
+        } 
+        
+        b = mk.FindElem("/config/Stations");
+        if (!b) {
+          return;
+        }
+        mk.IntoElem();
+        while(mk.FindElem("Station")) {
+          CStdString ip = mk.GetAttrib("ip");
+          CStdString ext = mk.GetAttrib("ext");
+          ip_exts.insert(std::make_pair(ip, ext)); 
+        }
+        
 }
 
 void VoIpConfig::Validate()

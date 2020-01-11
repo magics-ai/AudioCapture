@@ -44,7 +44,9 @@
 #include "Iax2Parsers.h"
 #include "SizedBuffer.h"
 
+//audio chunk 回调
 extern AudioChunkCallBackFunction g_audioChunkCallBack;
+//事件回调
 extern CaptureEventCallBackFunction g_captureEventCallBack;
 extern OrkLogManager* g_logManager;
 
@@ -150,207 +152,10 @@ private:
 
 #define VoIpSingleton VoIp
 //=========================================================
-bool TryRtcp(EthernetHeaderStruct* ethernetHeader, IpHeaderStruct* ipHeader, UdpHeaderStruct* udpHeader, u_char* udpPayload)
-{
-	RtcpCommonHeaderStruct* rtcpHeader = (RtcpCommonHeaderStruct*)udpPayload;
-	RtcpCommonHeaderStruct* r = NULL;
-	RtcpCommonHeaderStruct* rtcpEnd = NULL;
-	RtcpCommonHeaderStruct* rtcpThisPktEnd = NULL;
-	CStdString logMsg;
-
-	if(!DLLCONFIG.m_rtcpDetect)
-	{
-		return false;
-	}
-
-	if((ntohs(udpHeader->len)-sizeof(UdpHeaderStruct)) < sizeof(RtcpCommonHeaderStruct))
-	{
-		// Packet too small
-		return false;
-	}
-
-	unsigned short version = (rtcpHeader->vpc & 0x00c0) >> 6;
-	unsigned short p = (rtcpHeader->vpc & 0x0020) >> 5;
-	unsigned short count = (rtcpHeader->vpc & 0x001f);
-
-	if(version != 2)
-	{
-		// Failed first header validity check in RFC1889 A.2
-		return false;
-	}
-
-	if(rtcpHeader->pt != 200 && rtcpHeader->pt != 201)
-	{
-		// Failed second header validity check in RFC1889 A.2
-		return false;
-	}
-
-	if(p != 0)
-	{
-		// Failed third header validity check in RFC1889 A.2
-		return false;
-	}
-
-	rtcpEnd = (RtcpCommonHeaderStruct*)((char*)udpPayload + (ntohs(udpHeader->len)-sizeof(UdpHeaderStruct)));
-	r = rtcpHeader;
-	unsigned short mv = 0;
-
-	r = (RtcpCommonHeaderStruct*)((unsigned int *)r + ntohs(r->length) + 1);
-	while(r < rtcpEnd && ((rtcpEnd - r) >= (int)sizeof(RtcpCommonHeaderStruct)))
-	{
-		mv = (r->vpc & 0x00c0) >> 6;
-		if(mv != 2)
-		{
-			break;
-		}
-		r = (RtcpCommonHeaderStruct*)((unsigned int *)r + ntohs(r->length) + 1);
-	}
-
-	if(r != rtcpEnd)
-	{
-		// Failed final header validity check in RFC1889 A.2
-		return false;
-	}
-
-	char sourceIp[16], destIp[16];
-	inet_ntopV4(AF_INET, (void*)&ipHeader->ip_src, sourceIp, sizeof(sourceIp));
-	inet_ntopV4(AF_INET, (void*)&ipHeader->ip_dest, destIp, sizeof(destIp));
-
-	// As per RFC we should be fairly sure we have an RTCP packet and
-	// henceforth our return value will be true
-
-	// Now let's see whether we can obtain an SDES packet
-	char cname[256];
-	RtcpSdesCsrcItem *csrcItem = NULL;
-	r = rtcpHeader;
-
-	memset(cname, 0, sizeof(cname));
-
-	r = (RtcpCommonHeaderStruct*)((unsigned int *)r + ntohs(r->length) + 1);
-	while(r < rtcpEnd && ((rtcpEnd - r) >= (int)sizeof(RtcpCommonHeaderStruct)))
-	{
-		version = (r->vpc & 0x00c0) >> 6;
-		p = (r->vpc & 0x0020) >> 5;
-		count = (r->vpc & 0x001f);
-
-		rtcpThisPktEnd = (RtcpCommonHeaderStruct*)((unsigned int *)r + ntohs(r->length) + 1);
-
-		if(r->pt == 202 && count)
-		{
-			// Check if we have CNAME in the first CSRC
-			csrcItem = (RtcpSdesCsrcItem *)((unsigned int *)r + 2);
-
-			while((csrcItem < (RtcpSdesCsrcItem *)rtcpThisPktEnd) && (csrcItem->type != 1) && (csrcItem->type != 0))
-			{
-				csrcItem = (RtcpSdesCsrcItem *)((char*)csrcItem + (int)csrcItem->length);
-			}
-
-			if(csrcItem < (RtcpSdesCsrcItem *)rtcpThisPktEnd && csrcItem->type == 1)
-			{
-				break;
-			}
-
-			csrcItem = NULL;
-		}
-
-		r = (RtcpCommonHeaderStruct*)((unsigned int *)r + ntohs(r->length) + 1);
-	}
-
-	if(csrcItem == NULL)
-	{
-		// No CNAME
-		return true;
-	}
-
-	RtcpSrcDescriptionPacketInfoRef info(new RtcpSrcDescriptionPacketInfo());
-
-	info->m_sourceIp = ipHeader->ip_src;
-	info->m_destIp =  ipHeader->ip_dest;
-	info->m_sourcePort = ntohs(udpHeader->source);
-	info->m_destPort = ntohs(udpHeader->dest);
-
-	memcpy(cname, csrcItem->data, ((csrcItem->length > 254) ? 254 : csrcItem->length));
-
-	if(csrcItem->length == 0 || strncasecmp(cname, "ext", ((3 > csrcItem->length) ? csrcItem->length : 3)))
-	{
-		if(DLLCONFIG.m_inInMode == false)
-		{
-			// Not an extension
-			return true;
-		}
-		else
-		{
-			if(csrcItem->length == 0)
-			{
-				return true;
-			}
-		}
-	}
-
-	info->m_fullCname = cname;
-
-	/*
-	 * Now parse the CNAME. As per RFC1889, 6.4.1, the CNAME is either
-	 * in the format "user@host" or "host".  However we will also support
-	 * "user@host:port" or "host:port"
-	 */
-	char *x = NULL, *y = NULL, *z = NULL;
-
-	x = cname;
-	y = strchr(cname, '@');
-	if(!y)
-	{
-		// CNAME is in the "host" or "host:port" format only, no user
-		y = strchr(cname, ':');
-		if(!y)
-		{
-			// We have no port
-			GrabToken(cname, cname+strlen(cname), info->m_cnameDomain);
-		}
-		else
-		{
-			*y++ = '\0';
-			GrabToken(x, x+strlen(x), info->m_cnameDomain);
-			if(*y)
-			{
-				GrabToken(y, y+strlen(y), info->m_cnamePort);
-			}
-		}
-	}
-	else
-	{
-		*y++ = '\0';
-		GrabToken(x, x+strlen(x), info->m_cnameUsername);
-		if(*y)
-		{
-			z = strchr(y, ':');
-			if(!z)
-			{
-				// We have no port
-				GrabToken(y, y+strlen(y), info->m_cnameDomain);
-			}
-			else
-			{
-				*z++ = '\0';
-				GrabToken(y, y+strlen(y), info->m_cnameDomain);
-				if(*z)
-				{
-					GrabToken(z, z+strlen(z), info->m_cnamePort);
-				}
-			}
-		}
-	}
-
-	info->ToString(logMsg);
-	LOG4CXX_DEBUG(s_rtcpPacketLog, logMsg);
-
-	VoIpSessionsSingleton::instance()->ReportRtcpSrcDescription(info);
-
-	return true;
-}
 
 bool TryRtp(EthernetHeaderStruct* ethernetHeader, IpHeaderStruct* ipHeader, UdpHeaderStruct* udpHeader, u_char* udpPayload)
 {
+        
 	bool result = false;
 	RtpHeaderStruct* rtpHeader = (RtpHeaderStruct*)udpPayload;
 	std::map<unsigned int, unsigned int>::iterator pair;
@@ -485,7 +290,7 @@ bool TryRtp(EthernetHeaderStruct* ethernetHeader, IpHeaderStruct* ipHeader, UdpH
 	}
 	return result;
 }
-
+//check , only focus on rtp
 void DetectUsefulUdpPacket(EthernetHeaderStruct* ethernetHeader, IpHeaderStruct* ipHeader, int ipHeaderLength, u_char* ipPacketEnd)
 {
 	UdpHeaderStruct* udpHeader = (UdpHeaderStruct*)((char *)ipHeader + ipHeaderLength);
@@ -493,170 +298,12 @@ void DetectUsefulUdpPacket(EthernetHeaderStruct* ethernetHeader, IpHeaderStruct*
 	{
 		bool detectedUsefulPacket = false;
 		u_char* udpPayload = (u_char *)udpHeader + sizeof(UdpHeaderStruct);
-
 		MutexSentinel mutexSentinel(s_mutex); // serialize access for competing pcap threads
-
 		detectedUsefulPacket = TryRtp(ethernetHeader, ipHeader, udpHeader, udpPayload);
-
-		if(!detectedUsefulPacket) {
-			detectedUsefulPacket= TrySipInvite(ethernetHeader, ipHeader, udpHeader, udpPayload, ipPacketEnd);
-		}
-
-		if(!detectedUsefulPacket) {
-			detectedUsefulPacket= TrySip200Ok(ethernetHeader, ipHeader, udpHeader, udpPayload, ipPacketEnd);
-		}
-
-
-		if(DLLCONFIG.m_sipNotifySupport == true){
-			if(!detectedUsefulPacket) {
-				detectedUsefulPacket= TrySipNotify(ethernetHeader, ipHeader, udpHeader, udpPayload, ipPacketEnd);
-			}
-		}
-		if(!detectedUsefulPacket) {
-			if(DLLCONFIG.m_sipDetectSessionProgress == true)
-			{
-				detectedUsefulPacket = TrySipSessionProgress(ethernetHeader, ipHeader, udpHeader, udpPayload, ipPacketEnd);
-			}
-		}
-
-		if(!detectedUsefulPacket) {
-			if(DLLCONFIG.m_sip302MovedTemporarilySupport == true)
-			{
-				detectedUsefulPacket = TrySip302MovedTemporarily(ethernetHeader, ipHeader, udpHeader, udpPayload, ipPacketEnd);
-			}
-		}
-
-		if(!detectedUsefulPacket) {
-			detectedUsefulPacket = TrySipBye(ethernetHeader, ipHeader, udpHeader, udpPayload, ipPacketEnd);
-		}
-
-		if(!detectedUsefulPacket) {
-			detectedUsefulPacket = TrySipRefer(ethernetHeader, ipHeader, udpHeader, udpPayload, ipPacketEnd);
-		}
-
-		if(!detectedUsefulPacket) {
-			detectedUsefulPacket = TrySipInfo(ethernetHeader, ipHeader, udpHeader, udpPayload, ipPacketEnd);
-		}
-
-		if(!detectedUsefulPacket) {
-			detectedUsefulPacket = TryLogFailedSip(ethernetHeader, ipHeader, udpHeader, udpPayload, ipPacketEnd);
-		}
-
-		if(!detectedUsefulPacket) {
-			if(DLLCONFIG.m_sipCallPickUpSupport == true)
-			{
-				detectedUsefulPacket= TrySipSubscribe(ethernetHeader, ipHeader, udpHeader, udpPayload, ipPacketEnd);
-			}
-		}
-
-		if(!detectedUsefulPacket) {
-			if(DLLCONFIG.m_rtcpDetect == true)
-			{
-				detectedUsefulPacket = TryRtcp(ethernetHeader, ipHeader, udpHeader, udpPayload);
-			}
-		}
-
-		if(DLLCONFIG.m_iax2Support == false)
-		{
-			detectedUsefulPacket = true;	// Stop trying to detect if this UDP packet could be of interest
-		}
-
-		if(!detectedUsefulPacket) {
-			 detectedUsefulPacket = TryIax2New(ethernetHeader, ipHeader, udpHeader, udpPayload);
-		}
-
-		if(!detectedUsefulPacket) {
-			detectedUsefulPacket = TryIax2Accept(ethernetHeader, ipHeader, udpHeader, udpPayload);
-		}
-
-		if(!detectedUsefulPacket) {
-			detectedUsefulPacket = TryIax2Authreq(ethernetHeader, ipHeader, udpHeader, udpPayload);
-		}
-
-		if(!detectedUsefulPacket) {
-			detectedUsefulPacket = TryIax2Hangup(ethernetHeader, ipHeader, udpHeader, udpPayload);
-		}
-
-		if(!detectedUsefulPacket) {
-			detectedUsefulPacket = TryIax2ControlHangup(ethernetHeader, ipHeader, udpHeader, udpPayload);
-		}
-
-		if(!detectedUsefulPacket) {
-			detectedUsefulPacket = TryIax2Reject(ethernetHeader, ipHeader, udpHeader, udpPayload);
-		}
-
-		if(!detectedUsefulPacket) {
-			detectedUsefulPacket = TryIax2FullVoiceFrame(ethernetHeader, ipHeader, udpHeader, udpPayload);
-		}
-
-		if(!detectedUsefulPacket) {
-			detectedUsefulPacket = TryIax2MetaTrunkFrame(ethernetHeader, ipHeader, udpHeader, udpPayload);
-		}
-
-		if(!detectedUsefulPacket) {
-			detectedUsefulPacket = TryIax2MiniVoiceFrame(ethernetHeader, ipHeader, udpHeader, udpPayload);
-		}
+                return ; //kexin fix 
 	}
 }
 
-void DetectUsefulTcpPacket(EthernetHeaderStruct* ethernetHeader, IpHeaderStruct* ipHeader, int ipHeaderLength, u_char* ipPacketEnd)
-{
-	bool detectedUsefulPacket = false;
-	TcpHeaderStruct* tcpHeader = (TcpHeaderStruct*)((char *)ipHeader + ipHeaderLength);
-	if(ntohs(tcpHeader->source) == DLLCONFIG.m_skinnyTcpPort || ntohs(tcpHeader->dest) == DLLCONFIG.m_skinnyTcpPort)
-	{
-		detectedUsefulPacket = true;
-		MutexSentinel mutexSentinel(s_mutex);		// serialize access for competing pcap threads
-		ScanAllSkinnyMessages(ethernetHeader, ipHeader, tcpHeader, ipPacketEnd);
-	}
-	else if(DLLCONFIG.m_sipOverTcpSupport)
-	{
-		//CStdString tcpSeq;
-		//memToHex((unsigned char *)&tcpHeader->seq, 4, tcpSeq);
-		MutexSentinel mutexSentinel(s_mutex);		// serialize access for competing pcap threads
-		detectedUsefulPacket = TrySipTcp(ethernetHeader, ipHeader, tcpHeader);
-	}
-	if(!detectedUsefulPacket && DLLCONFIG.m_urlExtractorEnable == true && ntohs(tcpHeader->dest) == DLLCONFIG.m_urlExtractorPort)
-	{
-		char* startTcpPayload = (char*)tcpHeader + (tcpHeader->off * 4);
-		int payloadLength = ntohs(ipHeader->ip_len) - (ipHeader->ip_hl*4) - TCP_HEADER_LENGTH;
-		CStdString urlString;
-		for(int i=0; i<payloadLength; i++)
-		{
-			urlString += *startTcpPayload;
-			startTcpPayload++;
-		}
-		if(DLLCONFIG.m_urlExtractorEndpointIsSender == true)
-		{
-			VoIpSessionsSingleton::instance()->UrlExtraction(urlString, &ipHeader->ip_src);
-		}
-		else
-		{
-			VoIpSessionsSingleton::instance()->UrlExtraction(urlString, &ipHeader->ip_dest);
-		}
-	}
-
-	if(!detectedUsefulPacket && DLLCONFIG.m_onDemandTcpMarkerKey.length() > 0)
-	{
-		char* startTcpPayload = (char*)tcpHeader + (tcpHeader->off * 4);
-		char* patternKey = memFindAfter(DLLCONFIG.m_onDemandTcpMarkerKey, startTcpPayload, (char*)ipPacketEnd);
-		if(patternKey != NULL)
-		{
-			if(DLLCONFIG.m_onDemandTcpMarkerValue.length() > 0)
-			{
-				char *patternValue = memFindAfter(DLLCONFIG.m_onDemandTcpMarkerValue, patternKey, (char*)ipPacketEnd);
-				if(patternValue != NULL)
-				{
-					VoIpSessionsSingleton::instance()->ReportOnDemandMarkerByIp(ipHeader->ip_src);
-				}
-			}
-			else
-			{
-				VoIpSessionsSingleton::instance()->ReportOnDemandMarkerByIp(ipHeader->ip_src);
-			}
-		}
-	}
-}
 
 bool TryIpPacketV4(IpHeaderStruct* ipHeader)
 {
@@ -696,58 +343,6 @@ void ProcessTransportLayer(EthernetHeaderStruct* ethernetHeader, IpHeaderStruct*
 	{
 		DetectUsefulUdpPacket(ethernetHeader, ipHeader, ipHeaderLength, ipPacketEnd);
 	}
-	else if(ipHeader->ip_p == IPPROTO_TCP)
-	{
-		DetectUsefulTcpPacket(ethernetHeader, ipHeader, ipHeaderLength, ipPacketEnd);
-	}
-	else if(ipHeader->ip_p == IPPROTO_GRE)
-	{
-		//Check if its ESPAN
-		GreHeaderStruct *greHeader = (GreHeaderStruct*)((char *)ipHeader + ipHeaderLength);
-		if((ntohs(greHeader->flagVersion) == 0x1000 && ntohs(greHeader->protocolType) == PROT_ERSPAN)
-		  || (ntohs(greHeader->flagVersion) == 0x2000 && ntohs(greHeader->protocolType) == PROT_TRP) )
-		{
-			//temporary ignore Erspan payload, flag ...
-			//Follow is the real headers got encapsulated
-			EthernetHeaderStruct* encapsulatedEthernetHeader;
-			if(ntohs(greHeader->protocolType) == PROT_ERSPAN)
-			{
-				encapsulatedEthernetHeader = (EthernetHeaderStruct *)((char *)ipHeader + ipHeaderLength +  sizeof(GreHeaderStruct) + sizeof(ErspanHeaderStruct));
-			}
-			else
-			{
-				encapsulatedEthernetHeader = (EthernetHeaderStruct *)((char *)ipHeader + ipHeaderLength +  sizeof(GreHeaderStruct));
-			}
-			
-			IpHeaderStruct* encapsulatedIpHeader = NULL;
-
-			if(ntohs(encapsulatedEthernetHeader->type) == 0x8100)
-			{
-				encapsulatedIpHeader = (IpHeaderStruct*)((char*)encapsulatedEthernetHeader + sizeof(EthernetHeaderStruct) + 4);
-			}
-			else
-			{
-				encapsulatedIpHeader = (IpHeaderStruct*)((char*)encapsulatedEthernetHeader + sizeof(EthernetHeaderStruct));
-			}
-
-			if(TryIpPacketV4(encapsulatedIpHeader) != true)
-			{
-				return;
-			}
-
-			int encapsulatedIpHeaderLength = ipHeader->ip_hl*4;
-			u_char* encapsulatedIpPacketEnd = (u_char*)encapsulatedIpHeader + ntohs(encapsulatedIpHeader->ip_len);
-
-			if(encapsulatedIpHeader->ip_p == IPPROTO_UDP)
-			{
-				DetectUsefulUdpPacket(encapsulatedEthernetHeader, encapsulatedIpHeader, encapsulatedIpHeaderLength, encapsulatedIpPacketEnd);
-			}
-			else if(encapsulatedIpHeader->ip_p == IPPROTO_TCP)
-			{
-				DetectUsefulTcpPacket(encapsulatedEthernetHeader, encapsulatedIpHeader, encapsulatedIpHeaderLength, encapsulatedIpPacketEnd);
-			}
-		}
-	}
 }
 
 #define ETHER_TYPE_IPV4 0x0800
@@ -786,7 +381,7 @@ void HandlePacket(u_char *param, const struct pcap_pkthdr *header, const u_char 
 
 		CStdString logMsg;
 		logMsg.Format("numPackets:%u maxPPS:%u minPPS:%u", s_numPackets, s_maxPacketsPerSecond, s_minPacketsPerSecond);
-		LOG4CXX_INFO(s_packetStatsLog, logMsg);
+		LOG4CXX_DEBUG(s_packetStatsLog, logMsg);
 		if(DLLCONFIG.m_orekaEncapsulationMode == true)
 		{
 			logMsg.Format("udplistener-received:%u received10s:%u dropped:%u dropped10s:%u tcplistener-dropped:%d",
@@ -906,13 +501,15 @@ void HandlePacket(u_char *param, const struct pcap_pkthdr *header, const u_char 
 		ProcessTransportLayer(ethernetHeader,ipHeader);
 	}
 
-	if((now - s_lastHooveringTime) > 5)
+	if((now - s_lastHooveringTime) > 1)
 	{
 		MutexSentinel mutexSentinel(s_mutex);		// serialize access for competing pcap threads
 		s_lastHooveringTime = now;
+                //CStdString logMsg;
+                //logMsg.Format(" ################### HandlePacket Call Hoover ####################");
+                //LOG4CXX_INFO(s_packetLog, logMsg);       
 		VoIpSessionsSingleton::instance()->Hoover(now);
-		Iax2SessionsSingleton::instance()->Hoover(now);
-		VoIpSingleton::instance()->LoadPartyMaps();
+		//VoIpSingleton::instance()->LoadPartyMaps();
 	}
 }
 
@@ -940,8 +537,11 @@ void SingleDeviceCaptureThreadHandler(pcap_t* pcapHandle)
 		if(!s_liveCapture)
 		{
 			// This is a pcap file replay, stop all sessions before exiting
+			CStdString logMsg;
+                        logMsg.Format(" Stop All");
+                        LOG4CXX_INFO(s_packetLog, logMsg);
 			VoIpSessionsSingleton::instance()->StopAll();
-			Iax2SessionsSingleton::instance()->StopAll();
+			//Iax2SessionsSingleton::instance()->StopAll();
 			pcap_close(pcapHandle);
 		}
 		log.Format("Stop Capturing: pcap handle:%x", pcapHandle);
@@ -1109,11 +709,13 @@ void UdpListenerThread()
 
 		//In case there is no traffic coming into the socket, Hoover is not going to be called, try to avoid it
 		time_t now = time(NULL);
-		if((now - s_lastHooveringTime) > 5)
+		if((now - s_lastHooveringTime) > 1)
 		{
+                        CStdString logMsg;
+                        logMsg.Format(" ############## UdpListenerThread  call Hoover ############");
+                        LOG4CXX_INFO(s_packetLog, logMsg); 
 			MutexSentinel mutexSentinel(s_mutex);
 			s_lastHooveringTime = now;
-			Iax2SessionsSingleton::instance()->Hoover(now);
 			VoIpSessionsSingleton::instance()->Hoover(now);
 		}
 
@@ -1522,13 +1124,12 @@ void VoIp::OpenDevices()
 		if(devices)
 		{
 			LOG4CXX_INFO(s_packetLog, CStdString("Available pcap devices:"));
-
+                        //
 			for (pcap_if_t* device = devices; device != NULL; device = device->next)
 			{
 				if(!device){break;}
 
 				CStdString description = device->description;
-				LOG4CXX_INFO(s_packetLog, CStdString("* ") + device->name + " - " + description);
 				CStdString deviceName(device->name);
 				deviceName.ToLower();
 				if(	deviceName.Find("dialup") == -1		&&			// Don't want Windows dialup devices (still possible to force them using the configuration file)
@@ -1537,8 +1138,13 @@ void VoIp::OpenDevices()
 				{
 					defaultDevice =  device;
 				}
+                                CStdString logMsg;
+                                logMsg.Format(" devices size = %d",DLLCONFIG.m_devices.size());
+                                LOG4CXX_INFO(s_packetLog, logMsg.c_str()); 
 				if((DLLCONFIG.m_devices.size() > 0 && (*DLLCONFIG.m_devices.begin()).CompareNoCase("all") == 0) || DLLCONFIG.IsDeviceWanted(device->name))
 				{
+
+				        LOG4CXX_INFO(s_packetLog, CStdString("* ") + device->name + " - " + description);
 					// Open device
 #ifdef CENTOS_5
 					pcapHandle = pcap_open_live(device->name, pcap_live_snaplen, PROMISCUOUS, 500, errorBuf);
@@ -1818,13 +1424,18 @@ void VoIp::Initialize()
 	s_rtpPacketLog = Logger::getLogger("packet.rtp");
 	s_rtcpPacketLog = Logger::getLogger("packet.rtcp");
 
-	LOG4CXX_INFO(s_packetLog, "Initializing VoIP plugin");
+	LOG4CXX_INFO(s_packetLog, "Initializing VoIP plugin xxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
 
 	// create a default config object in case it was not properly initialized by Configure
 	if(!g_VoIpConfigTopObjectRef.get())
 	{
 		g_VoIpConfigTopObjectRef.reset(new VoIpConfigTopObject);
 	}
+
+        CStdString logMsg;
+        logMsg.Format(" Initialize  ip_exts size = %d xxxxxxxxxxxxxxxxxx", DLLCONFIG.ip_exts.size());
+        LOG4CXX_INFO(s_packetLog, logMsg);
+
 
 	if(DLLCONFIG.m_pcapFile.size() > 0)
 	{
@@ -1844,13 +1455,15 @@ void VoIp::Initialize()
 	}
 	else
 	{
+                LOG4CXX_INFO(s_packetLog, "2222 OpenDevices");
 		OpenDevices();
 		s_liveCapture = true;
 	}
+        LOG4CXX_INFO(s_packetLog, "1111111");
 
-	InitializeWin1251Table(utf);
-	LoadPartyMaps();
-	LoadSkinnyGlobalNumbers();
+	//InitializeWin1251Table(utf);
+	//LoadPartyMaps();
+	//LoadSkinnyGlobalNumbers();
 	s_mtuMaxSize = DLLCONFIG.m_mtuMaxSize;
 }
 
@@ -1876,10 +1489,10 @@ void VoIp::ReportPcapStats()
 				logMsg.Format("%s: handle:%x received:%u received10s:%u dropped:%u dropped10s:%u ifdropped:%u ifdropped10s:%u",
 							   pcapHandleData->ifName,pcapHandleData->m_pcapHandle, stats.ps_recv, pcapHandleData->m_numReceived10s,
 							   stats.ps_drop, pcapHandleData->m_numDropped10s, pcapHandleData->m_numIfDropped, pcapHandleData->m_numIfDropped10s);
-				 LOG4CXX_INFO(s_packetStatsLog, logMsg);
+				 LOG4CXX_DEBUG(s_packetStatsLog, logMsg);
 			} else {
 				logMsg.Format("handle:%x received:%u dropped:%u", pcapHandleData->m_pcapHandle, stats.ps_recv, stats.ps_drop);
-				LOG4CXX_INFO(s_packetStatsLog, logMsg);
+				LOG4CXX_DEBUG(s_packetStatsLog, logMsg);
 			}
 		}
 	}
