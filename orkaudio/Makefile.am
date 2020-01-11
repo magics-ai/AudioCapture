@@ -1,5 +1,6 @@
 # not a GNU package. You can remove this line, if
 # have all needed files, that a GNU package needs
+#cp config-linux-template.xml /etc/orkaudio/config.xml
 AUTOMAKE_OPTIONS = foreign 1.4
 
 
@@ -19,7 +20,6 @@ orkaudioconf_DATA = \
 install-orkaudioconfDATA:
 	mkdir -p /etc/orkaudio
 	cp logging-linux-template.properties /etc/orkaudio/logging.properties
-	cp config-linux-template.xml /etc/orkaudio/config.xml
 	ldconfig
 	mkdir -p /var/log/orkaudio
 

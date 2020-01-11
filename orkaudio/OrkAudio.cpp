@@ -216,7 +216,8 @@ void MainThread()
 #endif
 	OrkLogManager::Instance()->Initialize();
 	LOG4CXX_INFO(LOG.rootLog, CStdString("\n\nOrkAudio service starting\n"));
-
+        
+        LOG4CXX_INFO(LOG.rootLog, CStdString(" ConfigManager Initialize"));
 	ConfigManager::Instance()->Initialize();
 
 	// Initialize object factory and register existing objects
@@ -278,18 +279,18 @@ void MainThread()
 	FilterRegistry::instance()->RegisterFilter(filter);
 	filter.reset(new G721CodecDecoder());
 	FilterRegistry::instance()->RegisterFilter(filter);
-    filter.reset(new OpusCodecDecoder());
+	filter.reset(new OpusCodecDecoder());
 	FilterRegistry::instance()->RegisterFilter(filter);
 	
 	// Register in-built tape processors and build the processing chain
-	OrkTrack::Initialize(CONFIG.m_trackerHostname, CONFIG.m_trackerServicename, CONFIG.m_trackerTcpPort);
+	//OrkTrack::Initialize(CONFIG.m_trackerHostname, CONFIG.m_trackerServicename, CONFIG.m_trackerTcpPort);
 	BatchProcessing::Initialize();
 	CommandProcessing::Initialize();
-	Reporting::Initialize();
+	//Reporting::Initialize();
 	TapeFileNaming::Initialize();
 	DirectionSelector::Initialize();
 	TapeProcessorRegistry::instance()->CreateProcessingChain();
-
+        //实时处理模块
 	try{
 		std::thread handler(&ImmediateProcessing::ThreadHandler);
 		handler.detach();
@@ -297,7 +298,7 @@ void MainThread()
 		logMsg.Format("Failed to start ImmediateProcessing thread reason:%s",  ex.what());
 		LOG4CXX_ERROR(LOG.rootLog, logMsg);	
 	}
-	
+	//批处理模块
 	if(CONFIG.m_storageAudioFormat != FfNative)
 	{
 		// storage format is not native, which means we need batch workers to compress to wanted format 
@@ -312,7 +313,7 @@ void MainThread()
 			}
 		}
 	}
-
+/*
 	try{
 		std::thread handler(&Reporting::ThreadHandler);
 		handler.detach();
@@ -320,7 +321,7 @@ void MainThread()
 		logMsg.Format("Failed to start Reporting thread reason:%s",  ex.what());
 		LOG4CXX_ERROR(LOG.rootLog, logMsg);	
 	}
-
+*/
 	try{
 		std::thread handler(&TapeFileNaming::ThreadHandler);
 		handler.detach();
@@ -328,7 +329,7 @@ void MainThread()
 		logMsg.Format("Failed to start TapeFileNaming thread reason:%s",  ex.what());
 		LOG4CXX_ERROR(LOG.rootLog, logMsg);	
 	}
-
+/*
 	try{
 		std::thread handler(&CommandProcessing::ThreadHandler);
 		handler.detach();
@@ -336,7 +337,7 @@ void MainThread()
 		logMsg.Format("Failed to start CommandProcessing thread reason:%s",  ex.what());
 		LOG4CXX_ERROR(LOG.rootLog, logMsg);	
 	}
-
+*/      
 	try{
 		std::thread handler(&DirectionSelector::ThreadHandler);
 		handler.detach();
@@ -351,27 +352,28 @@ void MainThread()
 	// 	std::thread handler(&CommandLineServer::Run, &commandLineServer);
 	// 	handler.detach();
 	// }
-
+/*
 	HttpServer httpServ(CONFIG.m_httpServerPort);
 	if(httpServ.Initialize())
 	{
 		std::thread handler(&HttpServer::Run, &httpServ);
 		handler.detach();
 	}
-
+*/
+/*
 	EventStreamingServer eventStreamingSvc(CONFIG.m_eventStreamingServerPort);
 	if(eventStreamingSvc.Initialize())
 	{
 		std::thread handler(&EventStreamingServer::Run, &eventStreamingSvc);
 		handler.detach();
 	}
-
+*/
 	if(capturePluginOk)
 	{
 		CapturePluginProxy::Singleton()->Run();
 	}
 
-	SocketStreamer::Initialize(CONFIG.m_socketStreamerTargets);
+	//SocketStreamer::Initialize(CONFIG.m_socketStreamerTargets);
 
 	while(!Daemon::Singleton()->IsStopping())
 	{
