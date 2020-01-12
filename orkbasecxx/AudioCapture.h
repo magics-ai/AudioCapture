@@ -225,6 +225,9 @@ public:
 	EventTypeEnum m_type;
 	CStdString m_key;
 	CStdString m_value;
+
+        CStdString ip;
+        CStdString ext;
 };
 
 typedef oreka::shared_ptr<CaptureEvent> CaptureEventRef;

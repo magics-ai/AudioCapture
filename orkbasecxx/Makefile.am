@@ -4,7 +4,7 @@ AUTOMAKE_OPTIONS = foreign 1.4
 
 
 lib_LTLIBRARIES = liborkbase.la
-liborkbase_la_LDFLAGS =  -lapr-1 -lpthread
+liborkbase_la_LDFLAGS =  -lapr-1 -lpthread 
 liborkbase_la_SOURCES = Filter.cpp g711.c \
 			OrkBase.cpp Object.cpp ObjectFactory.cpp \
 			OrkClient.cpp AudioCapture.cpp Utils.cpp  \

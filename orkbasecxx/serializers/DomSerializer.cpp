@@ -20,7 +20,7 @@
 #ifdef XERCES_3
 #include <xercesc/dom/DOMLSSerializer.hpp>
 #else
-#include <xercesc/dom/DOMWriter.hpp>
+//#include <xercesc/dom/DOMWriter.hpp>
 #endif
 #include <xercesc/framework/MemBufFormatTarget.hpp>
 

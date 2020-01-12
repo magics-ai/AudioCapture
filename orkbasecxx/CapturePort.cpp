@@ -79,9 +79,16 @@ void CapturePort::FilterAudioChunk(AudioChunkRef& chunkRef)
 {
 	// Iterate through all filters
 	std::list<FilterRef>::iterator it;
+        //CStdString logMsg;
+        //logMsg.Format(" audio chunk size %d", m_filters.size());
+        //LOG4CXX_INFO(s_log, logMsg);
 	for(it = m_filters.begin(); it != m_filters.end(); it++)
 	{
+                     
 		FilterRef filter = *it;
+                CStdString logMsg;
+                logMsg.Format(" FilterAudioChunk filter name %s", filter->GetName());
+                LOG4CXX_INFO(s_log, logMsg); 
 		filter->AudioChunkIn(chunkRef);
 		filter->AudioChunkOut(chunkRef);
 	}
@@ -139,13 +146,14 @@ void CapturePort::ReportEventBacklog(AudioTapeRef& audioTape)
 
 void CapturePort::AddAudioChunk(AudioChunkRef chunkRef)
 {
+        //LOG4CXX_INFO(s_log, " AddAudioChunk Decode Audio ");
 	FilterAudioChunk(chunkRef);
 
 	time_t now = time(NULL);
 	m_lastUpdated = now;
-
 	if(CONFIG.m_audioSegmentation)
 	{
+
 		if (m_audioTapeRef.get())
 		{
 			if ((now - m_audioTapeRef->m_beginDate) >= CONFIG.m_audioSegmentDuration)
@@ -154,11 +162,10 @@ void CapturePort::AddAudioChunk(AudioChunkRef chunkRef)
 				CaptureEventRef eventRef(new CaptureEvent);
 				eventRef->m_type = CaptureEvent::EtStop;
 				eventRef->m_timestamp = now;
-				AddCaptureEvent(eventRef);
 
 				// create new tape
 				m_audioTapeRef.reset(new AudioTape(m_id));
-
+                                LOG4CXX_INFO(s_log, "11111111 AudioTape");
 				// signal new tape start event
 				eventRef.reset(new CaptureEvent);
 				eventRef->m_type = CaptureEvent::EtStart;
@@ -173,6 +180,7 @@ void CapturePort::AddAudioChunk(AudioChunkRef chunkRef)
 			// create new tape
 			m_audioTapeRef.reset(new AudioTape(m_id));
 
+                        LOG4CXX_INFO(s_log, "22222222 AudioTape");
 			// signal new tape start event
 			CaptureEventRef eventRef(new CaptureEvent);
 			eventRef->m_type = CaptureEvent::EtStart;
@@ -182,98 +190,9 @@ void CapturePort::AddAudioChunk(AudioChunkRef chunkRef)
 			ReportEventBacklog(m_audioTapeRef);
 		}
 	}
-	else if (CONFIG.m_vad)
-	{
-
-		AudioChunkRef tmpChunkRef;
-		AudioChunkDetails details = *chunkRef->GetDetails();
-
-		if(chunkRef->GetEncoding() != PcmAudio)
-		{
-			FilterRef decoder;
-
-			decoder = m_decoders.at(details.m_rtpPayloadType);
-			if(decoder.get() != NULL)
-			{
-				decoder->AudioChunkIn(chunkRef);
-				decoder->AudioChunkOut(tmpChunkRef);
-			}
-		}
-		else
-		{
-			tmpChunkRef = chunkRef;
-		}
-
-		if(tmpChunkRef.get())
-		{
-			if(m_vadUp)
-			{
-				// There is an ongoing capture
-				if (tmpChunkRef->ComputeRmsDb() < CONFIG.m_vadLowThresholdDb)
-				{
-					// Level has gone below low threshold, increase holdon counter
-					m_vadBelowThresholdSec += tmpChunkRef->GetDurationSec();
-				}
-				else
-				{
-					// Level has gone above low threshold, reset holdon counter
-					m_vadBelowThresholdSec = 0.0;
-				}
-
-				if (m_vadBelowThresholdSec > CONFIG.m_vadHoldOnSec)
-				{
-					// no activity detected for more than hold on time
-					m_vadUp = false;
-
-					// signal current tape stop event
-					CaptureEventRef eventRef(new CaptureEvent);
-					eventRef->m_type = CaptureEvent::EtStop;
-					eventRef->m_timestamp = now;
-					AddCaptureEvent(eventRef);
-
-					LOG4CXX_DEBUG(s_log, "[" + m_audioTapeRef->m_trackingId + "] VAD triggered Stop");
-					m_audioTapeRef.reset();
-				}
-			}
-			else
-			{
-				// No capture is taking place yet
-				if (tmpChunkRef->ComputeRmsDb() > CONFIG.m_vadHighThresholdDb)
-				{
-					// Voice detected, start a new capture
-					m_vadBelowThresholdSec = 0.0;
-					m_vadUp = true;
-
-					// create new tape
-					if(!m_audioTapeRef.get())
-					{
-						m_audioTapeRef.reset(new AudioTape(m_id));
-
-						LOG4CXX_DEBUG(s_log, "[" + m_audioTapeRef->m_trackingId + "] VAD triggered Start");
-						// signal new tape start event
-						CaptureEventRef eventRef(new CaptureEvent);
-						eventRef->m_type = CaptureEvent::EtStart;
-						eventRef->m_timestamp = now;
-						eventRef->m_value = m_id;
-						AddCaptureEvent(eventRef);
-						ReportEventBacklog(m_audioTapeRef);
-					}
-				}
-			}
-		}
-		else
-		{
-			CStdString logMsg;
-
-			logMsg.Format("Voice activity detection: unsupported RTP payload type:%d", details.m_rtpPayloadType);
-			LOG4CXX_ERROR(s_log, logMsg);
-		}
-	}
-
 	if (m_audioTapeRef.get() && m_capturing)
 	{
 		m_audioTapeRef->AddAudioChunk(chunkRef);
-
 		// Signal to immediate processing thread that tape has new stuff
 		ImmediateProcessing::GetInstance()->AddAudioTape(m_audioTapeRef);
 	}
@@ -297,9 +216,9 @@ void CapturePort::AddCaptureEvent(CaptureEventRef eventRef)
 		}
 		audioTapeRef.reset(new AudioTape(m_id));	// Create a new tape
 		audioTapeRef->AddCaptureEvent(eventRef, true);
-
+                
 		m_audioTapeRef = audioTapeRef;
-		LOG4CXX_INFO(s_log, "[" + m_audioTapeRef->m_trackingId + "] #" + m_id + " start");
+		LOG4CXX_INFO(s_log, " CapturePort::Start Create new Tape Instace [" + m_audioTapeRef->m_trackingId + "] #" + m_id + " start");
 	}
 
 	if (!audioTapeRef.get())
@@ -368,6 +287,7 @@ bool CapturePort::IsExpired(time_t now)
 {
 	if((now - m_lastUpdated) > (10*60))	// 10 minutes
 	{
+               
 		if(m_audioTapeRef.get())
 		{
 			if(m_audioTapeRef->m_state != AudioTape::StateActive)
@@ -377,6 +297,7 @@ bool CapturePort::IsExpired(time_t now)
 		}
 		else
 		{
+                        LOG4CXX_INFO(s_log, " ################### Rtp IsExpired ");                              
 			return true;
 		}
 	}
@@ -461,10 +382,11 @@ CStdString CapturePorts::GetHostName()
 
 void CapturePorts::Hoover()
 {
-	CStdString logMsg;
+        CStdString logMsg;
 	time_t now = time(NULL);
-	if( (now - m_lastHooveringTime) > 10)		// Hoover every 10 seconds
+	if( (now - m_lastHooveringTime) > 1)		// Hoover every 10 seconds
 	{
+              
 		m_lastHooveringTime = now;
 		int numPorts = m_ports.size();
 
@@ -487,10 +409,10 @@ void CapturePorts::Hoover()
 			CapturePortRef port = *it;
 			port->Finalize();
 			m_ports.erase(port->GetId());
-			LOG4CXX_DEBUG(s_log,  port->GetId() + ": Expired");
+			LOG4CXX_INFO(s_log,  port->GetId() + ": Expired");
 		}
-		logMsg.Format("Hoovered %d ports. New number:%d", (numPorts - m_ports.size()), m_ports.size());
-		LOG4CXX_DEBUG(s_log,  logMsg);
+		logMsg.Format(" CapturePorts  Hoovered %d ports. New number:%d", (numPorts - m_ports.size()), m_ports.size());
+		LOG4CXX_INFO(s_log,  logMsg);
 	}
 }
 

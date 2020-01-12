@@ -14,7 +14,7 @@
 
 extern "C"
 {
-  #include "bcg729/encoder.h"
+  //#include "bcg729/encoder.h"
   #include "bcg729/decoder.h"
 }
 

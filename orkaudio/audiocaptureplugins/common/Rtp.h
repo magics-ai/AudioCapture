@@ -41,6 +41,8 @@ public:
 	unsigned int m_ssrc;
 	unsigned int m_timestamp;
 	time_t m_arrivalTimestamp;
+        CStdString  ip;
+        CStdString  ext;
 };
 typedef oreka::shared_ptr<RtpPacketInfo> RtpPacketInfoRef;
 

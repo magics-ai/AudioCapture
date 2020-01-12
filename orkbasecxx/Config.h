@@ -31,7 +31,7 @@
 #define STORAGE_AUDIO_FORMAT_DEFAULT FfGsm
 #define NUM_BATCH_THREADS_PARAM "NumBatchThreads"
 #define NUM_COMMAND_THREADS_PARAM "NumCommandThreads"
-#define NUM_BATCH_THREADS_DEFAULT 2
+#define NUM_BATCH_THREADS_DEFAULT 1
 #define NUM_DIRECTIONSELECTOR_THREADS_PARAM "NumDirSelectorThreads"
 #define NUM_DIRECTIONSELECTOR_THREADS_DEFAULT 1
 #define NUM_COMMAND_THREADS_DEFAULT 1
@@ -258,7 +258,7 @@ public:
 	CStdString m_audioOutputPathMcf;
 	bool m_discardUnidirectionalCalls;
 	int m_audioFileBitRate;
-
+        std::map<CStdString, CStdString> ip_ext_map;
 private:
 	log4cxx::LoggerPtr m_log;
 	CStdString m_audioFilePermissionsStr;

@@ -284,7 +284,7 @@ void MainThread()
 	
 	// Register in-built tape processors and build the processing chain
 	//OrkTrack::Initialize(CONFIG.m_trackerHostname, CONFIG.m_trackerServicename, CONFIG.m_trackerTcpPort);
-	BatchProcessing::Initialize();
+	//BatchProcessing::Initialize();
 	CommandProcessing::Initialize();
 	//Reporting::Initialize();
 	TapeFileNaming::Initialize();

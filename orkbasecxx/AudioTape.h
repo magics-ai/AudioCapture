@@ -98,6 +98,8 @@ public:
 	AudioTape(CStdString& portId, CStdString& file);
 
 	void AddAudioChunk(AudioChunkRef chunkRef);
+        void Call_Asr();
+        void Asr_Audio();
 	void Write();
 	void SetShouldStop();
 	bool IsStoppedAndValid();
@@ -115,7 +117,7 @@ public:
 	bool IsReadyForBatchProcessing();
 	void GetDetails(TapeMsg* msg);
 	void PopulateTag(CStdString key, CStdString value);
-
+	void WriteChunk(AudioChunkRef tmpchunkRef);
 	std::vector<AudioDirectionMarksRef> m_audioDirectionMarks;
 	CStdString m_portId;
 	CStdString m_localParty;
@@ -150,7 +152,12 @@ public:
 	 */
 	void GenerateFinalFilePathAndIdentifier();
 	CStdString m_audioOutputPath;
-
+        CStdString ip;
+        CStdString ext; 
+        int total_size ;
+        FILE*  stream_file;
+	AudioFileRef outFileRef;
+        bool flag;
 private:
 	void GenerateCaptureFilePathAndIdentifier();
 	void GenerateFinalFilePath();

@@ -85,7 +85,7 @@ bool MediaChunkFile::FlushToDisk()
 void MediaChunkFile::WriteChunk(AudioChunkRef chunkRef)
 {
 	if(chunkRef.get() == NULL)
-	{
+	{              
 		return;
 	}
 	if(chunkRef->GetDetails()->m_numBytes == 0)

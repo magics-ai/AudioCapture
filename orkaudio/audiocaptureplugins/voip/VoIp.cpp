@@ -52,6 +52,7 @@ extern OrkLogManager* g_logManager;
 
 void HandleTcpConnection(int clientSock);
 void TcpListenerThread();
+void check_session_hoove();
 
 static LoggerPtr s_packetLog;
 static LoggerPtr s_packetStatsLog;
@@ -446,7 +447,7 @@ void HandlePacket(u_char *param, const struct pcap_pkthdr *header, const u_char 
 	if( captureEnd < (u_char*)ipPacketEnd  || (u_char*)ipPacketEnd <= ((u_char*)ipHeader + ipHeaderLength + TCP_HEADER_LENGTH))
 	{
 		// The packet has been snipped or has not enough payload, drop it,
-		return;
+		goto SESSION_CHECK;
 	}
 
 //#ifdef WIN32
@@ -500,17 +501,33 @@ void HandlePacket(u_char *param, const struct pcap_pkthdr *header, const u_char 
 	else {
 		ProcessTransportLayer(ethernetHeader,ipHeader);
 	}
-
+SESSION_CHECK:
 	if((now - s_lastHooveringTime) > 1)
 	{
-		MutexSentinel mutexSentinel(s_mutex);		// serialize access for competing pcap threads
+		//MutexSentinel mutexSentinel(s_mutex);		// serialize access for competing pcap threads
 		s_lastHooveringTime = now;
                 //CStdString logMsg;
                 //logMsg.Format(" ################### HandlePacket Call Hoover ####################");
                 //LOG4CXX_INFO(s_packetLog, logMsg);       
-		VoIpSessionsSingleton::instance()->Hoover(now);
+		//VoIpSessionsSingleton::instance()->Hoover(now);
 		//VoIpSingleton::instance()->LoadPartyMaps();
 	}
+}
+
+
+void check_session_hoove() {
+
+   bool stop = false;
+   while (!stop) {
+
+           OrkSleepMs(1000);
+	   time_t now = time(NULL);
+	   MutexSentinel mutexSentinel(s_mutex);		// serialize access for competing pcap threads
+	   //CStdString logMsg;
+	   //LOG4CXX_INFO(s_packetLog, " check_session_hoove");       
+	   VoIpSessionsSingleton::instance()->Hoover(now);
+    }  
+
 }
 
 void SingleDeviceCaptureThreadHandler(pcap_t* pcapHandle)
@@ -1534,6 +1551,17 @@ void VoIp::Run()
 			LOG4CXX_ERROR(s_packetLog, logMsg);	
 		}
 	}
+
+        {
+          try {
+            std::thread handler(check_session_hoove);
+            handler.detach();
+          } catch(const std::exception &ex) {
+            logMsg.Format(" check_session_hoove ,reason: %s", ex.what());
+            LOG4CXX_INFO(s_packetLog, logMsg);
+          }
+        }
+       
 
 }
 

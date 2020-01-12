@@ -272,6 +272,7 @@ void RtpMixer::AudioChunkIn(AudioChunkRef& chunk)
 
 	if(details->m_marker == MEDIA_CHUNK_EOS_MARKER)
 	{
+          LOG4CXX_INFO(m_log, "MEDIA_CHUNK_EOS_MARKER");
 		if(m_numInputChannels)
 		{
 			for(int i = 0; i < m_numInputChannels; i++)
@@ -313,12 +314,15 @@ void RtpMixer::AudioChunkIn(AudioChunkRef& chunk)
 	}
 	else if(chunk->GetNumSamples() == 0)
 	{
+
+          LOG4CXX_INFO(m_log, "chunk->GetNumBytes() == 0");
 		logMsg.Format("[%s] Empty input chunk",m_trackingId);
 		LOG4CXX_DEBUG(m_log, logMsg);
 		return;
 	}
 	if(chunk->GetNumBytes() > 100000)
 	{
+          LOG4CXX_INFO(m_log, "chunk->GetNumBytes() > 10000");
 		m_error = true;
 		logMsg.Format("[%s] RtpMixer: input chunk too big",m_trackingId);
 		LOG4CXX_ERROR(m_log,logMsg);
@@ -326,6 +330,7 @@ void RtpMixer::AudioChunkIn(AudioChunkRef& chunk)
 	}
 	if(details->m_encoding != PcmAudio)
 	{
+          LOG4CXX_INFO(m_log, "details->m_encoding != PcmAudio");
 		throw (CStdString("RtpMixer input audio must be PCM !"));
 	}	
 
@@ -333,11 +338,13 @@ void RtpMixer::AudioChunkIn(AudioChunkRef& chunk)
 
 	if(m_numOutputChannels == 2)
 	{
+          LOG4CXX_INFO(m_log, "m_numOutputChannels == 2");
 		CreateChannels(details->m_channel);
 	}
 
 	if(details->m_channel == 1)
 	{
+          LOG4CXX_INFO(m_log, "details->m_channel == 1");
 		if(m_numInputChannels)
 		{
 			int chanIdx = 0;
@@ -375,6 +382,7 @@ void RtpMixer::AudioChunkIn(AudioChunkRef& chunk)
 	}
 	else if(details->m_channel == 2)
 	{
+          LOG4CXX_INFO(m_log, "details->m_channel == 2");
 		if(m_numInputChannels)
 		{
 			int chanIdx = 1;
@@ -434,6 +442,7 @@ void RtpMixer::AudioChunkIn(AudioChunkRef& chunk)
 	}
 	else
 	{
+          LOG4CXX_INFO(m_log, " xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
 		// Support for channel 3, 4, 5, ...
 		if(m_numInputChannels)
 		{
@@ -482,7 +491,8 @@ void RtpMixer::AudioChunkIn(AudioChunkRef& chunk)
 		}
 	}
 	unsigned int rtpEndTimestamp = correctedTimestamp + chunk->GetNumSamples();
-
+      
+        LOG4CXX_INFO(m_log, "1111111111111111111111"); 
 	if(m_log->isDebugEnabled())
 	{
 		logMsg.Format("[%s] New chunk, s%d seq:%u ts:%u corr-ts:%u",m_trackingId, details->m_channel, details->m_sequenceNumber, details->m_timestamp, correctedTimestamp);
@@ -491,8 +501,10 @@ void RtpMixer::AudioChunkIn(AudioChunkRef& chunk)
 
 	if(m_writeTimestamp == 0)
 	{
+		LOG4CXX_INFO(m_log, "222222222222222222222"); 
 		if(details->m_channel == 1)
 		{
+		        LOG4CXX_INFO(m_log, "55555555555555555555"); 
 			// First RTP packet of the session
 			logMsg.Format("[%s] First chunk",m_trackingId);
 			LOG4CXX_DEBUG(m_log, logMsg);
@@ -508,6 +520,8 @@ void RtpMixer::AudioChunkIn(AudioChunkRef& chunk)
 	}
 	else if (correctedTimestamp >= m_readTimestamp)
 	{
+
+		LOG4CXX_INFO(m_log, "3333333333333333333"); 
 		if( (int)(rtpEndTimestamp - m_writeTimestamp) <= (int)FreeSpace() && (int)(m_writeTimestamp - correctedTimestamp) <= (int)UsedSpace())
 		{
 			// RTP packet fits into current buffer
@@ -544,6 +558,7 @@ void RtpMixer::AudioChunkIn(AudioChunkRef& chunk)
 	}
 	else
 	{
+		LOG4CXX_INFO(m_log, "44444444444444444444"); 
 		// This chunk is older than the current timestamp window
 		ManageOutOfRangeTimestamp(chunk);
 	}
@@ -605,11 +620,15 @@ void RtpMixer::AudioChunkOut(AudioChunkRef& chunk)
 {
 	if(m_outputQueue.size() > 0)
 	{
+                CStdString logMsg;
+                logMsg.Format(" size = %d",m_outputQueue.size());
+                LOG4CXX_INFO(m_log, logMsg);
 		chunk = m_outputQueue.front();
 		m_outputQueue.pop();
 	}
 	else
 	{
+                LOG4CXX_INFO(m_log, "chunk reset");
 		chunk.reset();
 	}
 }

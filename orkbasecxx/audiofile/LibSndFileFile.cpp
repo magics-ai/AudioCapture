@@ -16,6 +16,7 @@
 #include "Utils.h"
 #include "LibSndFileFile.h"
 #include "ConfigManager.h"
+#include "LogManager.h"
 
 LibSndFileFile::LibSndFileFile(int fileFormat)
 {
@@ -85,10 +86,12 @@ void LibSndFileFile::WriteChunk(AudioChunkRef chunkRef)
 {
 	if(chunkRef.get() == NULL)
 	{
+                LOG4CXX_INFO(LOG.rootLog, " chunkRef.get == null");
 		return;
 	}
 	if(chunkRef->GetDetails()->m_numBytes == 0)
 	{
+                LOG4CXX_INFO(LOG.rootLog, " m_numBytes == 0");
 		return;
 	}
 
@@ -96,6 +99,7 @@ void LibSndFileFile::WriteChunk(AudioChunkRef chunkRef)
 	{
 		if( chunkRef->GetEncoding() == AlawAudio ||  chunkRef->GetEncoding() == UlawAudio)
 		{
+                        LOG4CXX_INFO(LOG.rootLog, " Encoding AlawAudio Encoding Audio");
 			// We have faith that whoever is producing these chunks created them
 			// with the same number of channels that we have opened the soundfile
 			// with above - this is enforced in the RtpMixer
@@ -144,6 +148,8 @@ void LibSndFileFile::WriteChunk(AudioChunkRef chunkRef)
 		}
 		else if (chunkRef->GetEncoding() == PcmAudio)
 		{
+
+                        LOG4CXX_INFO(LOG.rootLog, " Encoding PcmAudio");
 			// We have faith that whoever is producing these chunks created them
 			// with the same number of channels that we have opened the soundfile
 			// with above - this is enforced in the RtpMixer
@@ -180,6 +186,7 @@ void LibSndFileFile::WriteChunk(AudioChunkRef chunkRef)
 			}
 			else
 			{
+                                LOG4CXX_INFO(LOG.rootLog, "===sf_write_short====");
 				if(sf_write_short(m_pFile, (short*)chunkRef->m_pBuffer, chunkRef->GetNumSamples()) != chunkRef->GetNumSamples())
 				{
 					CStdString numChunksWrittenString = IntToString(m_numChunksWritten);

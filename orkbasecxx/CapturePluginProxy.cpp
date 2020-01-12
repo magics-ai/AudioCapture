@@ -45,7 +45,7 @@ bool CapturePluginProxy::Initialize()
 	m_singleton = new CapturePluginProxy();
 	return m_singleton->Init();
 }
-
+//加载libvoip.so
 bool CapturePluginProxy::Init()
 {
 	OrkAprSubPool locPool;
@@ -112,6 +112,7 @@ bool CapturePluginProxy::Init()
 			{
 				LOG4CXX_ERROR(LOG.rootLog, CStdString("Could not find registerCallBacksFunction"));
 			}
+                        //注册回调
 			registerCallBacks(AudioChunkCallBack, CaptureEventCallBack, OrkLogManager::Instance());
 
 			ret = apr_dso_sym((apr_dso_handle_sym_t*)&m_configureFunction, m_dsoHandle, "Configure");
@@ -332,6 +333,8 @@ void __CDECL__ CapturePluginProxy::CaptureEventCallBack(CaptureEventRef eventRef
 	}
 	else
 	{
+                
+                LOG4CXX_INFO(LOG.rootLog, " CaputreEventCallBack ");
 		// find the right port and give it the event
 		CapturePortRef portRef = CapturePortsSingleton::instance()->AddAndReturnPort(capturePort);
 		portRef->AddCaptureEvent(eventRef);

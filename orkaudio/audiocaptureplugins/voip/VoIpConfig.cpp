@@ -42,7 +42,7 @@ void VoIpConfig::Reset() {
 	m_pcapSocketBufferSize = 67108864;
 	m_pcapFastReplay = true;
 	m_pcapFastReplaySleepUsPerSec = 0;
-	m_rtpSessionTimeoutSec = 10;
+	m_rtpSessionTimeoutSec = 1;
 	m_rtpSessionWithSignallingTimeoutSec = 10;
 	m_rtpSessionWithSignallingInitialTimeoutSec = 5*60;
 	m_rtpSessionOnHoldTimeOutSec = 1800;

@@ -232,6 +232,8 @@ void BatchProcessing::ThreadHandler()
 	debug.Format("thread Th%s starting - queue size:%d", threadIdString, CONFIG.m_batchProcessingQueueSize);
 	LOG4CXX_INFO(LOG.batchProcessingLog, debug);
 
+        
+
 	bool stop = false;
 
 	for(;stop == false;)
@@ -275,7 +277,8 @@ void BatchProcessing::ThreadHandler()
 
 
 
-				//fileRef->MoveOrig();	// #### could do this only when original and output file have the same extension. Irrelevant for now as everything is captured as mcf file
+				//fileRef->MoveOrig();	
+				//// #### could do this only when original and output file have the same extension. Irrelevant for now as everything is captured as mcf file
 				fileRef->Open(AudioFile::READ);
 
 				AudioChunkRef chunkRef;
@@ -308,11 +311,12 @@ void BatchProcessing::ThreadHandler()
 					outFileRef->SetNumOutputChannels(2);
 				}
 
-				FilterRef rtpMixer, rtpMixerSecondary;
+                                
+				//FilterRef rtpMixer, rtpMixerSecondary;
 				FilterRef decoder1;
 				FilterRef decoder2;
 				FilterRef decoder;
-				FilterRef audiogain;
+				//FilterRef audiogain;
 
 				std::bitset<RTP_PAYLOAD_TYPE_MAX> seenRtpPayloadTypes;
 				std::vector<FilterRef> decoders1;
@@ -331,7 +335,7 @@ void BatchProcessing::ThreadHandler()
 				size_t numSamplesS1 = 0;
 				size_t numSamplesS2 = 0;
 				size_t numSamplesOut = 0;
-
+                                /*
 				CStdString filterName("AudioGain");
 
 				audiogain = FilterRegistry::instance()->GetNewFilter(filterName);
@@ -340,132 +344,33 @@ void BatchProcessing::ThreadHandler()
 					debug = "Could not instanciate AudioGain rtpMixer";
 					throw(debug);
 				}
-
-				bool forceChannel1 = false;
+                                */
+				bool forceChannel1 = true;
 
 				while(fileRef->ReadChunkMono(chunkRef))
 				{
-					// ############ HACK
-                    // sleep for 1 usec
-					// ############ HACK
-
 					AudioChunkDetails details = *chunkRef->GetDetails();
-					int channelToSkip = 0;
-					if(CONFIG.m_directionLookBack == true)					//if DirectionLookBack is not enable, DirectionSelector Tape should have taken care everything
-					{
-						if(BatchProcessing::SkipChunk(audioTapeRef, chunkRef, channelToSkip) == true)
-						{
-							LOG4CXX_DEBUG(LOG.batchProcessingLog, "[" + trackingId +
-	                                                "] Th" + threadIdString +
-	                                                " skipping chunk of channel:" +
-							IntToString(details.m_channel));
-
-							if(forceChannel1 == false)
-							{
-								if(channelToSkip == 1)
-								{
-									forceChannel1 = true;
-								}
-							}
-
-							continue;
-						}
-					}
-
 					if(forceChannel1 == true)
 					{
 						details.m_channel = 1;
 						chunkRef->SetDetails(&details);
 					}
-
 					decoder.reset();
+					decoder1 = decoders1.at(details.m_rtpPayloadType);
+					decoder = decoder1;
+					voIpSession = true;
 
-					if(details.m_rtpPayloadType < -1 || details.m_rtpPayloadType >= RTP_PAYLOAD_TYPE_MAX)
-					{
-						logMsg.Format("RTP payload type out of bound:%d", details.m_rtpPayloadType);
-						LOG4CXX_DEBUG(LOG.batchProcessingLog, "[" + trackingId + "] Th" + threadIdString + " " + logMsg);
-						continue;
-					}
-
-					// Instanciate any decoder we might need during a VoIP session
-					if(details.m_rtpPayloadType != -1)
-					{
-						voIpSession = true;
-
-						if(details.m_channel == 2)
-						{
-							decoder2 = decoders2.at(details.m_rtpPayloadType);
-							decoder = decoder2;
-						}
-						else
-						{
-							decoder1 = decoders1.at(details.m_rtpPayloadType);
-							decoder = decoder1;
-						}
-
-						bool ptAlreadySeen = seenRtpPayloadTypes.test(details.m_rtpPayloadType);
-						seenRtpPayloadTypes.set(details.m_rtpPayloadType);
-
-						if(decoder.get() == NULL)
-						{
-							if(ptAlreadySeen == false)
-							{
-								// First time we see a particular unsupported payload type in this session, log it
-								CStdString rtpPayloadType = IntToString(details.m_rtpPayloadType);
-								LOG4CXX_ERROR(LOG.batchProcessingLog, "[" + trackingId + "] Th" + threadIdString + " unsupported RTP payload type:" + rtpPayloadType);
-							}
-							// We cannot decode this chunk due to unknown codec, go to next chunk
-							continue;
-						}
-						else if(ptAlreadySeen == false)
-						{
-							// First time we see a particular supported payload type in this session, log it
-							CStdString rtpPayloadType = IntToString(details.m_rtpPayloadType);
-							LOG4CXX_INFO(LOG.batchProcessingLog, "[" + trackingId + "] Th" + threadIdString + " RTP payload type:" + rtpPayloadType);
-						}
-					}
 					if(!voIpSession || (firstChunk && decoder.get()))
 					{
 						firstChunk = false;
-
 						// At this point, we know we have a working codec, create an RTP mixer and open the output file
-						if(voIpSession)
-						{
-							CStdString filterName("RtpMixer");
-							rtpMixer = FilterRegistry::instance()->GetNewFilter(filterName);
-							if(rtpMixer.get() == NULL)
-							{
-								debug = "Could not instanciate RTP mixer";
-								throw(debug);
-							}
-							if(CONFIG.m_stereoRecording == true)
-							{
-								rtpMixer->SetNumOutputChannels(2);
-							}
-							rtpMixer->SetSessionInfo(trackingId);
-
-							//create another rtpmixer to store stereo audio
-							if(CONFIG.m_audioOutputPathSecondary.length() > 3)
-							{
-								outFileSecondaryRef.reset(new LibSndFileFile(SF_FORMAT_PCM_16 | SF_FORMAT_WAV));
-								outFileSecondaryRef->SetNumOutputChannels(2);
-								rtpMixerSecondary = FilterRegistry::instance()->GetNewFilter(filterName);
-								if(rtpMixerSecondary.get() == NULL)
-								{
-									debug = "Could not instanciate RTP mixer";
-									throw(debug);
-								}
-								rtpMixerSecondary->SetNumOutputChannels(2);
-								rtpMixerSecondary->SetSessionInfo(trackingId);
-
-							}
-
-						}
-
 						CStdString path = audioTapeRef->m_audioOutputPath + "/" + audioTapeRef->GetPath();
 						FileRecursiveMkdir(path, CONFIG.m_audioFilePermissions, CONFIG.m_audioFileOwner, CONFIG.m_audioFileGroup, audioTapeRef->m_audioOutputPath);
 
 						CStdString file = path + "/" + audioTapeRef->GetIdentifier();
+                                                CStdString logMsg;
+                                                logMsg.Format(" file = %s, samleRate %d", file, fileRef->GetSampleRate());
+                                                LOG4CXX_INFO(LOG.batchProcessingLog, logMsg);
 						outFileRef->Open(file, AudioFile::WRITE, false, fileRef->GetSampleRate());
 
 						if(CONFIG.m_audioOutputPathSecondary.length() > 3)
@@ -479,56 +384,23 @@ void BatchProcessing::ThreadHandler()
 					}
 					if(voIpSession)
 					{
-						if(details.m_channel == 2)
+						decoder1->AudioChunkIn(chunkRef);
+						decoder1->AudioChunkOut(tmpChunkRef);
+						if(tmpChunkRef.get())
 						{
-							decoder2->AudioChunkIn(chunkRef);
-							decoder2->AudioChunkOut(tmpChunkRef);
-							if(tmpChunkRef.get())
-							{
-								numSamplesS2 += tmpChunkRef->GetNumSamples();
-							}
-
-							if(rtpMixerSecondary.get() != NULL)
-							{
-								decoder2->AudioChunkOut(tmpChunkSecondaryRef);
-							}
-						}
-						else
-						{
-							decoder1->AudioChunkIn(chunkRef);
-							decoder1->AudioChunkOut(tmpChunkRef);
-							if(tmpChunkRef.get())
-							{
-								numSamplesS1 += tmpChunkRef->GetNumSamples();
-							}
-
-							if(rtpMixerSecondary.get() != NULL)
-							{
-								decoder1->AudioChunkOut(tmpChunkSecondaryRef);
-							}
+							numSamplesS1 += tmpChunkRef->GetNumSamples();
 						}
 
-						audiogain->AudioChunkIn(tmpChunkRef);
-						audiogain->AudioChunkOut(tmpChunkRef);
-						rtpMixer->AudioChunkIn(tmpChunkRef);
-						rtpMixer->AudioChunkOut(tmpChunkRef);
-						if(rtpMixerSecondary.get() != NULL)
-						{
-							rtpMixerSecondary->AudioChunkIn(tmpChunkSecondaryRef);
-							rtpMixerSecondary->AudioChunkOut(tmpChunkSecondaryRef);
-						}
+					} 
 
-					} else {
-						audiogain->AudioChunkIn(tmpChunkRef);
-						audiogain->AudioChunkOut(tmpChunkRef);
-					}
+                                        if (tmpChunkRef.get()) {
+					        outFileRef->WriteChunk(tmpChunkRef);
+						//audioTapeRef->WriteChunk(tmpChunkRef);
+                                        }
+                                        else {
+                                          LOG4CXX_INFO(LOG.batchProcessingLog, " rtpMixer  tmpChunkRef is null");
 
-					outFileRef->WriteChunk(tmpChunkRef);
-					if(rtpMixerSecondary.get() != NULL)
-					{
-						outFileSecondaryRef->WriteChunk(tmpChunkSecondaryRef);
-					}
-
+                                        }
 					if(tmpChunkRef.get())
 					{
 						numSamplesOut += tmpChunkRef->GetNumSamples();
@@ -551,43 +423,10 @@ void BatchProcessing::ThreadHandler()
 							frameSleepCounter += 1;
 						}
 					}
-				}
-
-				if(voIpSession && !firstChunk)
-				{
-					// Flush the RTP mixer
-					AudioChunkRef stopChunk(new AudioChunk());
-					stopChunk->GetDetails()->m_marker = MEDIA_CHUNK_EOS_MARKER;
-					rtpMixer->AudioChunkIn(stopChunk);
-					rtpMixer->AudioChunkOut(tmpChunkRef);
-
-					if (tmpChunkRef.get()) {
-						tmpChunkRef->GetDetails()->m_marker = MEDIA_CHUNK_EOS_MARKER;
-					}
-					if(rtpMixerSecondary.get() != NULL)
-					{
-						rtpMixerSecondary->AudioChunkOut(tmpChunkSecondaryRef);
-					}
-
-					while(tmpChunkRef.get())
-					{
-						outFileRef->WriteChunk(tmpChunkRef);
-						numSamplesOut += tmpChunkRef->GetNumSamples();
-						rtpMixer->AudioChunkOut(tmpChunkRef);
-					}
-					while(tmpChunkSecondaryRef.get())
-					{
-						outFileSecondaryRef->WriteChunk(tmpChunkSecondaryRef);
-						rtpMixerSecondary->AudioChunkOut(tmpChunkSecondaryRef);
-					}
-				}
+				}//read chunk from file
 
 				fileRef->Close();
 				outFileRef->Close();
-				if(rtpMixerSecondary.get() != NULL)
-				{
-					outFileSecondaryRef->Close();
-				}
 				logMsg.Format("[%s] Th%s stop: num samples: s1:%u s2:%u out:%u queueSize:%d", trackingId, threadIdString, numSamplesS1, numSamplesS2, numSamplesOut, pBatchProcessing->m_audioTapeQueue.numElements());
 				LOG4CXX_INFO(LOG.batchProcessingLog, logMsg);
 

@@ -129,10 +129,12 @@ void ImmediateProcessing::ThreadHandler()
 			else
 			{
 				//LOG4CXX_INFO(LOG.immediateProcessingLog, "Previous:" + lastHandled + " Current:" + audioTapeRef->m_portId);
+				//kexin  
 				lastHandled = audioTapeRef->m_portId;
-			
+                                audioTapeRef->Asr_Audio(); 
+                                /*
 				audioTapeRef->Write();
-
+                                 
 				if (audioTapeRef->IsReadyForBatchProcessing())
 				{
 
@@ -156,8 +158,9 @@ void ImmediateProcessing::ThreadHandler()
 						// Pass the tape to the tape processor chain
 						TapeProcessorRegistry::instance()->RunProcessingChain(audioTapeRef);
 					}
-				}
+				}*/
 			}
+
 		}
 		catch (CStdString& e)
 		{

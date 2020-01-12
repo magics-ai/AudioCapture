@@ -14,6 +14,8 @@
 
 #define _WINSOCKAPI_		// prevents the inclusion of winsock.h
 
+#include <vector>
+#include <bitset>
 #include "Utils.h"
 #include "ThreadSafeQueue.h"
 #include "LogManager.h"
@@ -25,6 +27,8 @@
 #include "ConfigManager.h"
 #include "PartyFilter.h"
 #include "ConfigManager.h"
+#include "Filter.h"
+#include "audiofile/LibSndFileFile.h"
 
 AudioTapeDescription::AudioTapeDescription()
 {
@@ -131,6 +135,14 @@ AudioTape::AudioTape(CStdString &portId)
 	m_audioOutputPath = CONFIG.m_audioOutputPathMcf;
 
 	GenerateCaptureFilePathAndIdentifier();
+        total_size = 0;
+        CStdString fname;
+        fname.Format("%s.pcm",portId);
+        stream_file = fopen(fname, "a+"); 
+
+	//outFileRef.reset(new LibSndFileFile(SF_FORMAT_PCM_16 | SF_FORMAT_WAV));
+	//outFileRef->Open(fname, AudioFile::WRITE, false, 8000);
+        flag = false;
 }
 
 AudioTape::AudioTape(CStdString &portId, CStdString& file)
@@ -168,6 +180,10 @@ AudioTape::AudioTape(CStdString &portId, CStdString& file)
 	// Create the audiofile
 	m_audioFileRef.reset(new MediaChunkFile());
 	m_audioFileRef->SetFilename(file);
+        CStdString fname;
+        fname.Format("%s.pcm",portId);
+        stream_file = fopen(fname, "a+"); 
+        flag = false;
 }
 
 void AudioTape::AddAudioChunk(AudioChunkRef chunkRef)
@@ -198,8 +214,111 @@ void AudioTape::AddAudioChunk(AudioChunkRef chunkRef)
 			m_highMark = m_chunkQueue.size();
 		}
 	}
+
+        
+
+
+}
+//
+void AudioTape::Call_Asr() {
+  return;
 }
 
+
+//kexin asr stream
+void AudioTape::Asr_Audio() {
+	FilterRef decoder;
+	FilterRef decoder1;
+
+	std::bitset<RTP_PAYLOAD_TYPE_MAX> seenRtpPayloadTypes;
+	std::vector<FilterRef> decoders1;
+	std::vector<FilterRef> decoders2;
+	for(int pt=0; pt<RTP_PAYLOAD_TYPE_MAX; pt++)
+	{
+		decoder1 = FilterRegistry::instance()->GetNewFilter(pt);
+		decoders1.push_back(decoder1);
+	}
+        //===============================
+        bool done = false;
+	std::queue<AudioChunkRef> chunkQueue;
+	while(!done && m_state != StateStopped && m_state != StateError) {
+	  AudioChunkRef chunkRef;
+	  {
+            MutexSentinel sentinel(m_mutex);
+            if (m_chunkQueue.size()>0) {
+		    chunkRef = m_chunkQueue.front();
+		    m_chunkQueue.pop();
+                    chunkQueue.push(chunkRef);                  
+
+            }
+            else {
+              done = true;
+            }
+	  }
+        }
+
+        {
+          uint8_t* buf = new uint8_t[1048576];
+          memset(buf, 0, 1048576);
+          int pos = 0;
+          if (chunkQueue.size() > 50 || done) {
+            while(chunkQueue.size()>0) {
+
+              AudioChunkRef tmpChunkRef;
+              AudioChunkRef chunkRef = chunkQueue.front();
+              chunkQueue.pop();
+
+
+	      AudioChunkDetails details = *chunkRef->GetDetails();
+              details.m_channel = 1;
+	      chunkRef->SetDetails(&details);
+
+	      decoder.reset();
+
+	      decoder1 = decoders1.at(details.m_rtpPayloadType);
+              decoder = decoder1;
+
+              decoder1->AudioChunkIn(chunkRef);
+              decoder1->AudioChunkOut(tmpChunkRef);  
+
+              if (tmpChunkRef.get()) {
+                  fwrite(tmpChunkRef->m_pBuffer, tmpChunkRef->GetNumSamples(), 2 , stream_file);
+              }
+
+              //int num = 0;
+              //if(tmpChunkRef.get()) {
+              //  num = tmpChunkRef->GetNumBytes() * sizeof(char);
+              // }
+              // else {
+              //  continue;
+              // }
+              //total_size += num;
+              //memcpy(buf+pos, (uint8_t*)(tmpChunkRef->m_pBuffer), num);
+              //pos += num;
+              //fwrite(tmpChunkRef->m_pBuffer, tmpChunkRef->GetNumSamples(), 1 , stream_file);
+              //sf_write_raw(stream_file, tmpChunk)
+              //sf_write_raw(()stream_file, tmpChunkRef->m_pBuffer, tmpChunkRef->GetNumSamples());
+              fflush(stream_file);
+            }
+            //call asr 接口
+            Call_Asr();
+          }
+       }
+
+}
+
+
+void AudioTape::WriteChunk(AudioChunkRef tmpChunkRef) {
+
+        CStdString logMsg;
+        logMsg.Format(" Num Samples %d", tmpChunkRef->GetNumSamples());
+        LOG4CXX_INFO(LOG.tapeLog, logMsg);
+	fwrite(tmpChunkRef->m_pBuffer, tmpChunkRef->GetNumSamples(), 2 , stream_file);
+
+}
+
+
+//===
 void AudioTape::Write()
 {
 	// Get the latest audio chunks and write them to disk
@@ -277,10 +396,13 @@ void AudioTape::Write()
 					switch(chunkRef->GetEncoding())
 					{
 					case PcmAudio:
+                                                LOG4CXX_INFO(LOG.tapeLog, "PCM Audio");
+               
 						m_audioFileRef.reset(new LibSndFileFile(SF_FORMAT_PCM_16 | SF_FORMAT_WAV));
 						break;
 					default:					
 						// All other encodings: output as a media chunk file
+					        LOG4CXX_INFO(LOG.tapeLog, "MediaChunkFile");
 						m_audioFileRef.reset(new MediaChunkFile());
 					}
 					if (m_state == StateActive)
@@ -294,6 +416,9 @@ void AudioTape::Write()
 						PreventFileIdentifierCollision(path, m_fileIdentifier , extension);
 
 						// Open the capture file
+						CStdString logMsg;
+                                                logMsg.Format("SampleRate %d",chunkRef->GetSampleRate());
+						LOG4CXX_INFO(LOG.tapeLog, logMsg);
 						m_audioFileRef->Open(file, AudioFile::WRITE, false, chunkRef->GetSampleRate());
 
 						// determine what final extension the file will have after optional compression
@@ -393,15 +518,20 @@ void AudioTape::AddCaptureEvent(CaptureEventRef eventRef, bool send)
 		{
 			// Media chunk stream not yet started, we can update begin date with the actual capture begin date
 			m_beginDate = eventRef->m_timestamp;
+                        ip = eventRef->ip;
+                        ext = eventRef->ext;
 			GenerateCaptureFilePathAndIdentifier();
 		}
+                LOG4CXX_INFO(LOG.tapeLog, "EtStart ================");
 		break;
 	case CaptureEvent::EtStop:
 		m_shouldStop = true;
 		logMsg.Format("pushcount:%d popcount:%d highmark:%d", m_pushCount, m_popCount, m_highMark);
 		LOG4CXX_DEBUG(LOG.tapeLog, logMsg);
+                LOG4CXX_INFO(LOG.tapeLog, "EtStop =====================");
 		m_duration = eventRef->m_timestamp - m_beginDate;
-		if((CONFIG.m_remotePartyMaxDigits > 0) && (m_remoteParty.length() > CONFIG.m_remotePartyMaxDigits) && (m_remoteParty.CompareNoCase(m_remoteIp) != 0))
+		//outFileRef->Close();
+      		if((CONFIG.m_remotePartyMaxDigits > 0) && (m_remoteParty.length() > CONFIG.m_remotePartyMaxDigits) && (m_remoteParty.CompareNoCase(m_remoteIp) != 0))
 		{
 			int posCutOffDigits = m_remoteParty.length() - CONFIG.m_remotePartyMaxDigits;
 			m_remoteParty = m_remoteParty.substr(posCutOffDigits);
