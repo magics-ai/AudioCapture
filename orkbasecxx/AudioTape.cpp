@@ -14,6 +14,16 @@
 
 #define _WINSOCKAPI_		// prevents the inclusion of winsock.h
 
+#include "asr_bd/audio_streaming_client.h"
+#include "asr_bd/picosha2.h"
+
+typedef com::baidu::acu::pie::AsrClient AsrClient;
+typedef com::baidu::acu::pie::AsrStream AsrStream;
+typedef com::baidu::acu::pie::AudioFragmentResponse AudioFragmentResponse;
+typedef com::baidu::acu::pie::AudioFragmentResult AudioFragmentResult;
+
+
+
 #include <vector>
 #include <bitset>
 #include "Utils.h"
@@ -222,6 +232,40 @@ void AudioTape::AddAudioChunk(AudioChunkRef chunkRef)
 //
 void AudioTape::Call_Asr() {
   return;
+}
+
+
+void write_to_stream(AsrClient client, AsrStream* stream,
+                    char* buffer, int i) {
+    int size = client.get_send_package_size();
+    size_t count = 0;
+    while (i > 0) {
+        if (i > size) {
+            count = size;
+        }
+        else {
+            count = i;
+        }
+        if (stream->write(buffer, count, false) != 0) {
+            std::cerr << "[error] stream write buffer error" << std::endl;
+            break;
+        }
+        if (count < 0) {
+            std::cerr << "[warning] count < 0 !!!!!!!!" << std::endl;
+            break;
+        }
+        usleep(20*1000);
+        if (i < size) {
+            break;
+        }
+        else {
+            i = i - size;
+        }
+    }
+    //std::cout << "[debug] write stream " << std::endl;
+    stream->write(nullptr, 0, true);
+    std::cout << "[debug] write last buffer to stream" << std::endl;
+    std::cout << "Complete to write audio " << i << std::endl;
 }
 
 
