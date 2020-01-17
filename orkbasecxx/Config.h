@@ -258,7 +258,12 @@ public:
 	CStdString m_audioOutputPathMcf;
 	bool m_discardUnidirectionalCalls;
 	int m_audioFileBitRate;
-        std::map<CStdString, CStdString> ip_ext_map;
+    std::map<CStdString, CStdString> ip_ext_map;
+    
+    CStdString m_asr_portal;
+    CStdString m_asr_product_id;
+    CStdString m_asr_user;
+    CStdString m_asr_pwd; 
 private:
 	log4cxx::LoggerPtr m_log;
 	CStdString m_audioFilePermissionsStr;

@@ -94,6 +94,10 @@ Config::Config()
 	m_hostnameReportFqdn = HOSTNAME_REPORT_FQDN_DEFAULT;
 	m_discardUnidirectionalCalls = false;
 	m_audioFileBitRate = 6000;
+    m_asr_portal = "";
+    m_asr_product_id = "";
+    m_asr_user = "";
+    m_asr_pwd = "";
 }
 
 void Config::Define(Serializer* s)
@@ -234,6 +238,10 @@ void Config::Define(Serializer* s)
 	s->IntValue(CLIENT_RETRY_PERIOD_SEC, m_clientRetryPeriodSec);
 	s->BoolValue("DiscardUnidirectionalCalls", m_discardUnidirectionalCalls);
 	s->IntValue("AudioFileBitRate", m_audioFileBitRate);
+    s->StringValue("AsrPortal", m_asr_portal);
+    s->StringValue("AsrProductId", m_asr_product_id);
+    s->StringValue("AsrUser", m_asr_user);
+    s->StringValue("AsrPasswd", m_asr_pwd);
 }
 
 void Config::Validate()
