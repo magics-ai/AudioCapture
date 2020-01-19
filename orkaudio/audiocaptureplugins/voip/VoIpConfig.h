@@ -184,17 +184,17 @@ public:
 	CStdString m_necOffHoldMarker;
 	int m_mtuMaxSize;
 	CStdString m_sipLocalPartyFieldName;
-        std::map<CStdString, CStdString> ip_exts;
+    std::map<CStdString, CStdString> ip_exts;
 
         //ASR
-        CStdString url;
-        CStdString product_id;
-        CStdString user;
-        CStdString pwd;
+    CStdString url;
+    CStdString product_id;
+    CStdString user;
+    CStdString pwd;
         //
         //KAFKA
-        CStdString mq_queue;
-        CStdString topic;
+    CStdString mq_queue;
+    CStdString topic;
 };
 
 //========================================
