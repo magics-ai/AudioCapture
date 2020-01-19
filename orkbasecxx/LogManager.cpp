@@ -94,6 +94,7 @@ void OrkLogManager::Initialize()
 	reporting = Logger::getLogger("reporting");
 	ipfragmentation = Logger::getLogger("ipfragmentation");
 	messaging = Logger::getLogger("messaging");
+    asrLog = Logger::getLogger("asr");
 }
 
 void OrkLogManager::Shutdown()
