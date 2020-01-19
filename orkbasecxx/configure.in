@@ -29,7 +29,8 @@ fi
 if [echo "main(){}" | $CXX -std=c++11 -xc++ -S -  &>/dev/null]; then 
 	CXXFLAGS+=" -g -O2 -std=c++11 -DSUPPORTS_CPP11 -fPIC $CXXFLAGS"
 else	
-	CXXFLAGS+=" -g -O2"
+	#CXXFLAGS+=" -g -O2"
+	CXXFLAGS+=" -g -O2 -std=c++11 -DSUPPORTS_CPP11 -fPIC $CXXFLAGS"
 fi
 
 AC_LANG_CPLUSPLUS
