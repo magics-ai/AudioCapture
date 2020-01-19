@@ -14,16 +14,8 @@
 
 #define _WINSOCKAPI_		// prevents the inclusion of winsock.h
 
-#include "asr_bd/audio_streaming_client.h"
-#include "asr_bd/picosha2.h"
 
-typedef com::baidu::acu::pie::AsrClient AsrClient;
-typedef com::baidu::acu::pie::AsrStream AsrStream;
-typedef com::baidu::acu::pie::AudioFragmentResponse AudioFragmentResponse;
-typedef com::baidu::acu::pie::AudioFragmentResult AudioFragmentResult;
-
-
-
+#include "BDAsr.h"
 #include <vector>
 #include <bitset>
 #include "Utils.h"
@@ -235,39 +227,6 @@ void AudioTape::Call_Asr() {
 }
 
 
-void write_to_stream(AsrClient client, AsrStream* stream,
-                    char* buffer, int i) {
-    int size = client.get_send_package_size();
-    size_t count = 0;
-    while (i > 0) {
-        if (i > size) {
-            count = size;
-        }
-        else {
-            count = i;
-        }
-        if (stream->write(buffer, count, false) != 0) {
-            std::cerr << "[error] stream write buffer error" << std::endl;
-            break;
-        }
-        if (count < 0) {
-            std::cerr << "[warning] count < 0 !!!!!!!!" << std::endl;
-            break;
-        }
-        usleep(20*1000);
-        if (i < size) {
-            break;
-        }
-        else {
-            i = i - size;
-        }
-    }
-    //std::cout << "[debug] write stream " << std::endl;
-    stream->write(nullptr, 0, true);
-    std::cout << "[debug] write last buffer to stream" << std::endl;
-    std::cout << "Complete to write audio " << i << std::endl;
-}
-
 
 //kexin asr stream
 void AudioTape::Asr_Audio() {
@@ -282,12 +241,12 @@ void AudioTape::Asr_Audio() {
 		decoder1 = FilterRegistry::instance()->GetNewFilter(pt);
 		decoders1.push_back(decoder1);
 	}
-        //===============================
-        bool done = false;
+
+    bool done = false;
 	std::queue<AudioChunkRef> chunkQueue;
 	while(!done && m_state != StateStopped && m_state != StateError) {
-	  AudioChunkRef chunkRef;
-	  {
+	    AudioChunkRef chunkRef;
+	    {
             MutexSentinel sentinel(m_mutex);
             if (m_chunkQueue.size()>0) {
 		    chunkRef = m_chunkQueue.front();
@@ -298,57 +257,46 @@ void AudioTape::Asr_Audio() {
             else {
               done = true;
             }
-	  }
-        }
+	    }
+    }
 
-        {
-          uint8_t* buf = new uint8_t[1048576];
-          memset(buf, 0, 1048576);
-          int pos = 0;
-          if (chunkQueue.size() > 50 || done) {
+    {
+        uint8_t* buf = new uint8_t[1048576];
+        memset(buf, 0, 1048576);
+        int pos = 0;
+        if (chunkQueue.size() > 50 || done) {
             while(chunkQueue.size()>0) {
+                AudioChunkRef tmpChunkRef;
+                AudioChunkRef chunkRef = chunkQueue.front();
+                chunkQueue.pop();
 
-              AudioChunkRef tmpChunkRef;
-              AudioChunkRef chunkRef = chunkQueue.front();
-              chunkQueue.pop();
+	            AudioChunkDetails details = *chunkRef->GetDetails();
+                details.m_channel = 1;
+	            chunkRef->SetDetails(&details);
 
+	            decoder.reset();
+	            decoder1 = decoders1.at(details.m_rtpPayloadType);
+                decoder = decoder1;
 
-	      AudioChunkDetails details = *chunkRef->GetDetails();
-              details.m_channel = 1;
-	      chunkRef->SetDetails(&details);
+                decoder1->AudioChunkIn(chunkRef);
+                decoder1->AudioChunkOut(tmpChunkRef);  
 
-	      decoder.reset();
-
-	      decoder1 = decoders1.at(details.m_rtpPayloadType);
-              decoder = decoder1;
-
-              decoder1->AudioChunkIn(chunkRef);
-              decoder1->AudioChunkOut(tmpChunkRef);  
-
-              if (tmpChunkRef.get()) {
-                  fwrite(tmpChunkRef->m_pBuffer, tmpChunkRef->GetNumSamples(), 2 , stream_file);
-              }
-
-              //int num = 0;
-              //if(tmpChunkRef.get()) {
-              //  num = tmpChunkRef->GetNumBytes() * sizeof(char);
-              // }
-              // else {
-              //  continue;
-              // }
-              //total_size += num;
-              //memcpy(buf+pos, (uint8_t*)(tmpChunkRef->m_pBuffer), num);
-              //pos += num;
-              //fwrite(tmpChunkRef->m_pBuffer, tmpChunkRef->GetNumSamples(), 1 , stream_file);
-              //sf_write_raw(stream_file, tmpChunk)
-              //sf_write_raw(()stream_file, tmpChunkRef->m_pBuffer, tmpChunkRef->GetNumSamples());
-              fflush(stream_file);
+                if (tmpChunkRef.get()) {
+                    fwrite(tmpChunkRef->m_pBuffer, tmpChunkRef->GetNumSamples(), 2 , stream_file);
+                    CAsrPortalRef asrPortalRef;
+                    asrPortalRef->init_asr();
+                    std::time_t ti = std::time(nullptr)+600;
+                    CStdString st = UTCTsToString(ti);
+                    asrPortalRef->init_asr();
+                    asrPortalRef->connect_asr_server(st); 
+                    asrPortalRef->send_voice_stream((char*)(tmpChunkRef->m_pBuffer), tmpChunkRef->GetNumSamples()*2);
+                }
+                fflush(stream_file);
             }
             //call asr 接口
             Call_Asr();
-          }
-       }
-
+        }
+    }
 }
 
 
