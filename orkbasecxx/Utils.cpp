@@ -268,6 +268,18 @@ CStdString HexToString(const CStdString& hexInput)
 
 }
 
+CStdString UTCTsToString(int ts) {
+	CStdString dateFormat;
+	struct tm tt;
+	char calendarDate[80];
+	time_t date;
+	date = (time_t)ts;
+	tt = *localtime(&date);
+	//strftime(calendarDate, sizeof(calendarDate), "%a %Y-%m-%d %H:%M:%S %Z", &structTm);
+	dateFormat.Format("%04d%02d%02dT%02d%02d%02dZ", tt.tm_year, tt.tm_mon, tt.tm_mday, tt.tm_hour, tt.tm_min, tt.tm_sec);
+	return dateFormat;
+}
+
 CStdString IntUnixTsToString(int ts)
 {
 	CStdString dateFormat;

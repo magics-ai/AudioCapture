@@ -246,6 +246,7 @@ bool DLL_IMPORT_EXPORT_ORKBASE MatchesStringList(CStdString& string, std::list<C
 CStdString DLL_IMPORT_EXPORT_ORKBASE FormatDataSize(unsigned long int size);
 CStdString DLL_IMPORT_EXPORT_ORKBASE HexToString(const CStdString& hexInput);		//Only return digits
 CStdString DLL_IMPORT_EXPORT_ORKBASE IntUnixTsToString(int ts);
+CStdString DLL_IMPORT_EXPORT_ORKBASE UTCTsToString(int ts);
 void DLL_IMPORT_EXPORT_ORKBASE StringTokenizeToList(CStdString input, std::list<CStdString>& output);
 bool DLL_IMPORT_EXPORT_ORKBASE ChopToken(CStdString &token, CStdString separator, CStdString &s);
 
