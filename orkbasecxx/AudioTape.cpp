@@ -276,11 +276,8 @@ void AudioTape::Asr_Audio() {
     }
 
     {
-        uint8_t* buf = new uint8_t[1048576];
-        memset(buf, 0, 1048576);
         int pos = 0;
-        if (chunkQueue.size() > 50 || done) {
-            LOG4CXX_INFO(LOG.tapeLog, "send voice to asr");
+        if (chunkQueue.size() > 1 || done) {
             while(chunkQueue.size()>0) {
                 AudioChunkRef tmpChunkRef;
                 AudioChunkRef chunkRef = chunkQueue.front();
@@ -297,9 +294,22 @@ void AudioTape::Asr_Audio() {
                 decoder1->AudioChunkIn(chunkRef);
                 decoder1->AudioChunkOut(tmpChunkRef);  
 
+
+
                 if (tmpChunkRef.get()) {
-                        total_size +=  tmpChunkRef->GetNumSamples() * 2;
+                    int size = tmpChunkRef->GetNumSamples() * 2;
+                    total_size += size;
+                    packages_num++;
+
+                    CStdString logMsg;
+                    logMsg.Format(" send voice package num %d", packages_num);
+                    LOG4CXX_INFO(LOG.tapeLog, logMsg);
                     fwrite(tmpChunkRef->m_pBuffer, tmpChunkRef->GetNumSamples(), 2 , stream_file);
+                    asrPortalRef->send_voice_stream((char*)(tmpChunkRef->m_pBuffer), size);
+                    if (packages_num % 10 == 0) {
+                      LOG4CXX_INFO(LOG.tapeLog, " get asr result");
+                      asrPortalRef->read_call_back();
+                    }
                     fflush(stream_file);
                 }
             }

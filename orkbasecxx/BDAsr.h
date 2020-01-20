@@ -25,14 +25,15 @@ class CAsrPortal {
     CStdString pid;
     AsrClient client;
     AsrStream* stream {nullptr};
+    bool stop { false};
   public:
     void init_asr();
     bool connect_asr_server(CStdString expire_time);
     void send_voice_stream(char* buffer, int i);
     bool get_result(); 
     void uninit_asr();
-
-
+    bool write_stream(char* buffer, int cnt);
+    void read_call_back();
 };
 
 #endif

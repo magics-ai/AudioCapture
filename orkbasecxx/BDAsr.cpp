@@ -28,6 +28,7 @@ void default_callback(AudioFragmentResponse& resp,
         ss << "error resp type is=" << resp.type();
         LOG4CXX_INFO(LOG.asrLog, ss.str());
     }
+    LOG4CXX_INFO(LOG.asrLog, "default_call_end");
 }
 
 
@@ -40,6 +41,7 @@ void write_to_stream(AsrClient client, AsrStream* stream,
     LOG4CXX_INFO(LOG.asrLog, logMsg);
     
     size_t count = 0;
+    int cnt = 0;
     while (i > 0) {
         if (i > size) {
             count = size;
@@ -47,6 +49,8 @@ void write_to_stream(AsrClient client, AsrStream* stream,
         else {
             count = i;
         }
+        logMsg.Format(" send to asr time cnt = %d", cnt++);
+        LOG4CXX_INFO(LOG.asrLog, logMsg);
         if (stream->write(buffer, count, false) != 0) {
             LOG4CXX_ERROR(LOG.asrLog, "[error] stream write buffer error");
             break;
@@ -100,29 +104,47 @@ bool CAsrPortal::connect_asr_server(CStdString expire_time) {
 }
 
 
-void CAsrPortal::send_voice_stream(char* buffer, int i) {
-  std::thread writer(write_to_stream, client, stream, buffer, i);
-  //writer.detach();   
-
-  int read_num = 1;
-  char tmp[100] = "\0";
-  while(1) {
-    if (stream->read(default_callback, tmp) != 0) {
-      break;
-    }
-    std::stringstream ss;
-    ss << "[debug] read stream return " 
-                      << read_num++ << "times";
-    LOG4CXX_INFO(LOG.asrLog, ss.str())
-  }
-  
-  if (writer.joinable()) {
-       writer.join();
-  }
-
-  uninit_asr();  
+void CAsrPortal::send_voice_stream(char* buffer, int count) {
+    stream->write(buffer, count, false);
 }
 
+
+void CAsrPortal::read_call_back() {
+    int ret = 0;
+    char tmp[100];
+    memset(tmp, '\0', 100);
+    ret = stream->read(default_callback, tmp);
+    if (ret < 0) {
+      CStdString logMsg;
+      logMsg.Format(" read return failed , ret %d", ret);
+      LOG4CXX_INFO(LOG.asrLog, logMsg);
+    }
+}
+/*
+void CAsrPortal::send_voice_stream(char* buffer, int i) {
+
+  std::thread reader(read_call_back_thread, stream);  
+
+  //std::thread writer(write_to_stream, client, stream, buffer, i);
+  //writer.detach();   
+  //int read_num = 1;
+  //char tmp[100] = "\0";
+  //while(1) {
+  //  if (stream->read(default_callback, tmp) != 0) {
+  //    break;
+  //  }
+  //  std::stringstream ss;
+  //  ss << "[debug] read stream return " 
+  //                    << read_num++ << "times";
+  //  LOG4CXX_INFO(LOG.asrLog, ss.str())
+  //}
+  
+  //if (writer.joinable()) {
+  //     writer.join();
+ // }
+
+}
+*/
 void CAsrPortal::uninit_asr() {
   LOG4CXX_INFO(LOG.asrLog, " uninit asr destroy stream");
   client.destroy_stream(stream);

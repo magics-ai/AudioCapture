@@ -159,6 +159,7 @@ public:
         FILE*  stream_file;
 	AudioFileRef outFileRef;
         bool flag;
+        int packages_num { 0 };
 private:
 	void GenerateCaptureFilePathAndIdentifier();
 	void GenerateFinalFilePath();
