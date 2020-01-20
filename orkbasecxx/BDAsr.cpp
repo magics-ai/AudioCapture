@@ -64,7 +64,7 @@ void write_to_stream(AsrClient client, AsrStream* stream,
     }
     LOG4CXX_INFO(LOG.asrLog, " write stream to asr , thread end");
     stream->write(nullptr, 0, true);
-    delete buffer;  
+//    delete buffer;  
 }
 
 void CAsrPortal::init_asr() {

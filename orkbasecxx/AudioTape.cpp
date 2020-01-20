@@ -135,10 +135,18 @@ AudioTape::AudioTape(CStdString &portId)
 
 	m_audioOutputPath = CONFIG.m_audioOutputPathMcf;
 
+    asrPortalRef.reset(new CAsrPortal());
+    asrPortalRef->init_asr();
+    std::time_t ti = std::time(nullptr);
+    CStdString st = UTCTsToString(ti);
+    LOG4CXX_INFO(LOG.tapeLog, st);
+    asrPortalRef->init_asr();
+    asrPortalRef->connect_asr_server(st); 
+
 	GenerateCaptureFilePathAndIdentifier();
         total_size = 0;
         CStdString fname;
-        fname.Format("%s.pcm",portId);
+        fname.Format("%s/%s.pcm",m_audioOutputPath,portId);
         stream_file = fopen(fname, "a+"); 
 
 	//outFileRef.reset(new LibSndFileFile(SF_FORMAT_PCM_16 | SF_FORMAT_WAV));
@@ -290,7 +298,7 @@ void AudioTape::Asr_Audio() {
                 decoder1->AudioChunkOut(tmpChunkRef);  
 
                 if (tmpChunkRef.get()) {
-                        total_size =  tmpChunkRef->GetNumSamples() * 2;
+                        total_size +=  tmpChunkRef->GetNumSamples() * 2;
                     fwrite(tmpChunkRef->m_pBuffer, tmpChunkRef->GetNumSamples(), 2 , stream_file);
                     fflush(stream_file);
                 }
@@ -522,8 +530,8 @@ void AudioTape::AddCaptureEvent(CaptureEventRef eventRef, bool send)
 		m_shouldStop = true;
 		logMsg.Format("pushcount:%d popcount:%d highmark:%d", m_pushCount, m_popCount, m_highMark);
 		LOG4CXX_DEBUG(LOG.tapeLog, logMsg);
-        LOG4CXX_INFO(LOG.tapeLog, "EtStop =====================");
-	    m_audioFileRef->Close();
+        LOG4CXX_INFO(LOG.tapeLog, "EtStop check siltent voice");
+	    //m_audioFileRef->Close();
         {
           fseek(stream_file, SEEK_SET, 0);
           char* buffer = new char[total_size];
