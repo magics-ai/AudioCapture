@@ -27,7 +27,6 @@ void default_callback(AudioFragmentResponse& resp,
         std::stringstream ss;
         ss << "error resp type is=" << resp.type();
         LOG4CXX_INFO(LOG.asrLog, ss.str());
-       
     }
 }
 
@@ -103,7 +102,7 @@ bool CAsrPortal::connect_asr_server(CStdString expire_time) {
 
 void CAsrPortal::send_voice_stream(char* buffer, int i) {
   std::thread writer(write_to_stream, client, stream, buffer, i);
-  writer.detach();   
+  //writer.detach();   
 
   int read_num = 1;
   char tmp[100] = "\0";
@@ -116,6 +115,11 @@ void CAsrPortal::send_voice_stream(char* buffer, int i) {
                       << read_num++ << "times";
     LOG4CXX_INFO(LOG.asrLog, ss.str())
   }
+  
+  if (writer.joinable()) {
+       writer.join();
+  }
+
   uninit_asr();  
 }
 
