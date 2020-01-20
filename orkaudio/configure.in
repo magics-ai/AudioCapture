@@ -24,7 +24,8 @@ if [echo "main(){}" | $CXX -std=c++11 -xc++ -S -  &>/dev/null] ; then
 	CXXFLAGS+=" -g -O2 -fno-inline-functions -std=c++11 -DSUPPORTS_CPP11 -fPIC"
 	LDFLAGS+=" -ldl"
 else
-	CXXFLAGS+=" -g -O2 -fno-inline-functions"
+	##CXXFLAGS+=" -g -O2 -fno-inline-functions"
+	CXXFLAGS+=" -g -O2 -fno-inline-functions -std=c++11 -DSUPPORTS_CPP11 -fPIC"
 fi
 
 AC_LANG_CPLUSPLUS
