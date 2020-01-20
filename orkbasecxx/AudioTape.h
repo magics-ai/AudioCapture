@@ -14,6 +14,7 @@
 #ifndef __AUDIOTAPE_H__
 #define __AUDIOTAPE_H__
 
+#include "BDAsr.h"
 #include "time.h"
 #include "StdString.h"
 #include "shared_ptr.h"
@@ -197,6 +198,8 @@ private:
 	time_t m_lastLogWarning;
 
 	bool m_passedPartyFilterTest;
+    CAsrPortalRef asrPortalRef;
+
 };
 
 typedef oreka::shared_ptr<AudioTape> AudioTapeRef;

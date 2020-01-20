@@ -15,7 +15,6 @@
 #define _WINSOCKAPI_		// prevents the inclusion of winsock.h
 
 
-#include "BDAsr.h"
 #include <vector>
 #include <bitset>
 #include "Utils.h"
@@ -183,9 +182,17 @@ AudioTape::AudioTape(CStdString &portId, CStdString& file)
 	m_audioFileRef.reset(new MediaChunkFile());
 	m_audioFileRef->SetFilename(file);
         CStdString fname;
-        fname.Format("%s.pcm",portId);
+        fname.Format("%s/%s.pcm",CONFIG.m_audioOutputPath,portId);
         stream_file = fopen(fname, "a+"); 
         flag = false;
+
+    asrPortalRef.reset(new CAsrPortal());
+    asrPortalRef->init_asr();
+    std::time_t ti = std::time(nullptr);
+    CStdString st = UTCTsToString(ti);
+    LOG4CXX_INFO(LOG.tapeLog, st);
+    asrPortalRef->init_asr();
+    asrPortalRef->connect_asr_server(st); 
 }
 
 void AudioTape::AddAudioChunk(AudioChunkRef chunkRef)
@@ -265,6 +272,7 @@ void AudioTape::Asr_Audio() {
         memset(buf, 0, 1048576);
         int pos = 0;
         if (chunkQueue.size() > 50 || done) {
+            LOG4CXX_INFO(LOG.tapeLog, "send voice to asr");
             while(chunkQueue.size()>0) {
                 AudioChunkRef tmpChunkRef;
                 AudioChunkRef chunkRef = chunkQueue.front();
@@ -282,16 +290,10 @@ void AudioTape::Asr_Audio() {
                 decoder1->AudioChunkOut(tmpChunkRef);  
 
                 if (tmpChunkRef.get()) {
+                        total_size =  tmpChunkRef->GetNumSamples() * 2;
                     fwrite(tmpChunkRef->m_pBuffer, tmpChunkRef->GetNumSamples(), 2 , stream_file);
-                    CAsrPortalRef asrPortalRef;
-                    asrPortalRef->init_asr();
-                    std::time_t ti = std::time(nullptr)+600;
-                    CStdString st = UTCTsToString(ti);
-                    asrPortalRef->init_asr();
-                    asrPortalRef->connect_asr_server(st); 
-                    asrPortalRef->send_voice_stream((char*)(tmpChunkRef->m_pBuffer), tmpChunkRef->GetNumSamples()*2);
+                    fflush(stream_file);
                 }
-                fflush(stream_file);
             }
             //call asr 接口
             Call_Asr();
@@ -472,6 +474,8 @@ void AudioTape::Write()
 		if(m_audioFileRef.get())
 		{
 			m_audioFileRef->Close();
+            //asrPortalRef->send_voice_stream((char*)(tmpChunkRef->m_pBuffer), tmpChunkRef->GetNumSamples()*2);
+            LOG4CXX_INFO(LOG.tapeLog, "录音文件结束");
 			/*
 			 * This function is now called in the TapeFileNaming
 			 * tape processor.
@@ -483,8 +487,6 @@ void AudioTape::Write()
 			}
 		}
 	}
-
-
 }
 
 void AudioTape::SetShouldStop()
@@ -520,7 +522,15 @@ void AudioTape::AddCaptureEvent(CaptureEventRef eventRef, bool send)
 		m_shouldStop = true;
 		logMsg.Format("pushcount:%d popcount:%d highmark:%d", m_pushCount, m_popCount, m_highMark);
 		LOG4CXX_DEBUG(LOG.tapeLog, logMsg);
-                LOG4CXX_INFO(LOG.tapeLog, "EtStop =====================");
+        LOG4CXX_INFO(LOG.tapeLog, "EtStop =====================");
+	    m_audioFileRef->Close();
+        {
+          fseek(stream_file, SEEK_SET, 0);
+          char* buffer = new char[total_size];
+          fread(buffer, 1, total_size, stream_file);
+          asrPortalRef->send_voice_stream(buffer, total_size);
+        }
+        fclose(stream_file);
 		m_duration = eventRef->m_timestamp - m_beginDate;
 		//outFileRef->Close();
       		if((CONFIG.m_remotePartyMaxDigits > 0) && (m_remoteParty.length() > CONFIG.m_remotePartyMaxDigits) && (m_remoteParty.CompareNoCase(m_remoteIp) != 0))
