@@ -24,13 +24,14 @@ void default_callback(AudioFragmentResponse& resp,
            << ", error_code=" << resp.error_code()
            << ", error_message=" << resp.error_message()
            << ", content=" << audio_fragment->result();*/
-        //std::cout << ss.str() << std::endl;
+        ss << audio_fragment->result();
+        std::cout<< "content -" << ss.str() << std::endl;
         AsrKafka* pKafka = AsrKafka::GetInstance();
-        CStdString msg(audio_fragment->result());
+        CStdString msg(ss.str());
         pKafka->push_msg(msg); 
 
         CStdString logMsg;
-        logMsg.Format(" read content %s",msg /* audio_fragment->result()*/);
+        logMsg.Format(" read content %s",ss.str() /* audio_fragment->result()*/);
         LOG4CXX_INFO(LOG.asrLog, logMsg);
     } else {
         std::stringstream ss;
@@ -177,9 +178,9 @@ void CAsrPortal::send_voice_stream(char* buffer, int i) {
 */
 void CAsrPortal::uninit_asr() {
   stop = true;
+  //client.destroy_stream(stream);
   LOG4CXX_INFO(LOG.asrLog, " uninit asr destroy stream");
   //reader.join();
-  client.destroy_stream(stream);
 }
 
 

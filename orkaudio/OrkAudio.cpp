@@ -307,7 +307,8 @@ void MainThread()
         CStdString msg1 = "this is another message";
         pAsrKafka->push_msg(msg);
         pAsrKafka->push_msg(msg1);
-
+        CStdString msg2 = "您好";
+        pAsrKafka->push_msg(msg2);
         
 
 

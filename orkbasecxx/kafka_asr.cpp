@@ -131,7 +131,7 @@ bool AsrKafka::push_msg(CStdString& msg) {
      * to make sure previously produced messages have their
      * delivery report callback served (and any other callbacks
      * you register). */
-    producer->poll(0);
+   // producer->poll(0);
 
 
 

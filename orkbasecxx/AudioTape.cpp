@@ -223,7 +223,7 @@ void AudioTape::AddAudioChunk(AudioChunkRef chunkRef)
 	{
 		MutexSentinel sentinel(m_mutex);
 
-		if(m_chunkQueueDataSize >= (CONFIG.m_captureFileBatchSizeKByte * 3 * 1024))
+		if(m_chunkQueueDataSize >= (CONFIG.m_captureFileBatchSizeKByte * 3 * 1024*1014))
 		{
 			if(m_chunkQueueErrorReported == false)
 			{
