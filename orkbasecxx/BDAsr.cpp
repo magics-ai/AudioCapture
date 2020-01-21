@@ -5,6 +5,7 @@
 
 void default_callback(AudioFragmentResponse& resp, 
                       void* data) {
+    
     std::stringstream ss;
     if (data) {
         char* tmp = (char*) data;
@@ -22,7 +23,9 @@ void default_callback(AudioFragmentResponse& resp,
            << ", error_message=" << resp.error_message()
            << ", content=" << audio_fragment->result();
         std::cout << ss.str() << std::endl;
-        LOG4CXX_INFO(LOG.asrLog, ss.str());
+        CStdString logMsg;
+        logMsg.Format(" read content %s", audio_fragment->result());
+        LOG4CXX_INFO(LOG.asrLog, logMsg);
     } else {
         std::stringstream ss;
         ss << "error resp type is=" << resp.type();
@@ -75,9 +78,6 @@ void CAsrPortal::init_asr() {
   pid = CONFIG.m_asr_product_id;
   user = CONFIG.m_asr_user;
   pwd = CONFIG.m_asr_pwd;
-  CStdString logMsg;
-  logMsg.Format(" portal %s, pid %s, user %s, pwd %s", portal, pid, user, pwd);
-  LOG4CXX_INFO(LOG.asrLog, logMsg);
 }
 
 
@@ -108,6 +108,29 @@ void CAsrPortal::send_voice_stream(char* buffer, int count) {
     stream->write(buffer, count, false);
 }
 
+//
+void read_call_back_thread(CAsrPortal* portal, AsrStream* stream) {
+  int read_num = 0;
+  char tmp[100]; memset(tmp, '\0', 100);
+  sprintf(tmp, "audio 0");
+
+  while(!portal->stop) {
+    if (stream->read(default_callback, tmp) != 0) {
+      break;
+    }
+    std::stringstream ss;
+    ss << "[debug] read stream return " 
+                      << read_num++ << "times";
+    LOG4CXX_INFO(LOG.asrLog, ss.str())
+  }
+}
+
+
+//
+void CAsrPortal::start_read_thread() {
+    std::thread reader(read_call_back_thread, this, stream);  
+    reader.detach();
+}
 
 void CAsrPortal::read_call_back() {
     int ret = 0;
@@ -119,6 +142,7 @@ void CAsrPortal::read_call_back() {
       logMsg.Format(" read return failed , ret %d", ret);
       LOG4CXX_INFO(LOG.asrLog, logMsg);
     }
+    LOG4CXX_INFO(LOG.asrLog, "read_call_back");
 }
 /*
 void CAsrPortal::send_voice_stream(char* buffer, int i) {
@@ -146,7 +170,9 @@ void CAsrPortal::send_voice_stream(char* buffer, int i) {
 }
 */
 void CAsrPortal::uninit_asr() {
+  stop = true;
   LOG4CXX_INFO(LOG.asrLog, " uninit asr destroy stream");
+  //reader.join();
   client.destroy_stream(stream);
 }
 

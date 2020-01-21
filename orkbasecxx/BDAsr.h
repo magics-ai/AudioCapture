@@ -25,7 +25,6 @@ class CAsrPortal {
     CStdString pid;
     AsrClient client;
     AsrStream* stream {nullptr};
-    bool stop { false};
   public:
     void init_asr();
     bool connect_asr_server(CStdString expire_time);
@@ -34,6 +33,10 @@ class CAsrPortal {
     void uninit_asr();
     bool write_stream(char* buffer, int cnt);
     void read_call_back();
+    void start_read_thread();
+
+  public:
+    bool stop { false };
 };
 
 #endif

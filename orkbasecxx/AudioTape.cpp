@@ -141,16 +141,25 @@ AudioTape::AudioTape(CStdString &portId)
     CStdString st = UTCTsToString(ti);
     LOG4CXX_INFO(LOG.tapeLog, st);
     asrPortalRef->init_asr();
-    asrPortalRef->connect_asr_server(st); 
+    
 
+    CStdString logMsg;
+    logMsg.Format(" ##start create asr stream %s", portId);
+    LOG4CXX_INFO(LOG.tapeLog, logMsg); 
+    asrPortalRef->connect_asr_server(st); 
+    asrPortalRef->start_read_thread();
+    logMsg.Format(" ##end create asr stream %s", portId);
+    LOG4CXX_INFO(LOG.tapeLog, logMsg); 
+   
 	GenerateCaptureFilePathAndIdentifier();
         total_size = 0;
         CStdString fname;
         fname.Format("%s/%s.pcm",m_audioOutputPath,portId);
         stream_file = fopen(fname, "a+"); 
 
-	//outFileRef.reset(new LibSndFileFile(SF_FORMAT_PCM_16 | SF_FORMAT_WAV));
-	//outFileRef->Open(fname, AudioFile::WRITE, false, 8000);
+    //asrPortalRef->connect_asr_server(st); 
+
+
         flag = false;
 }
 
@@ -200,7 +209,11 @@ AudioTape::AudioTape(CStdString &portId, CStdString& file)
     CStdString st = UTCTsToString(ti);
     LOG4CXX_INFO(LOG.tapeLog, st);
     asrPortalRef->init_asr();
-    asrPortalRef->connect_asr_server(st); 
+    CStdString logMsg;
+    logMsg.Format(" #start create asr stream %d", portId);
+    LOG4CXX_INFO(LOG.tapeLog, logMsg); 
+    //asrPortalRef->connect_asr_server(st); 
+    
 }
 
 void AudioTape::AddAudioChunk(AudioChunkRef chunkRef)
@@ -245,6 +258,8 @@ void AudioTape::Call_Asr() {
 
 //kexin asr stream
 void AudioTape::Asr_Audio() {
+
+    LOG4CXX_INFO(LOG.tapeLog, " asr audio "); 
 	FilterRef decoder;
 	FilterRef decoder1;
 
@@ -264,16 +279,19 @@ void AudioTape::Asr_Audio() {
 	    {
             MutexSentinel sentinel(m_mutex);
             if (m_chunkQueue.size()>0) {
-		    chunkRef = m_chunkQueue.front();
-		    m_chunkQueue.pop();
+                    chunkRef = m_chunkQueue.front();
+                    m_chunkQueue.pop();
                     chunkQueue.push(chunkRef);                  
 
             }
             else {
-              done = true;
+                    done = true;
             }
 	    }
     }
+    CStdString logMsg;
+    logMsg.Format("waitting process package size %d",chunkQueue.size());
+    LOG4CXX_INFO(LOG.tapeLog, logMsg);
 
     {
         int pos = 0;
@@ -294,24 +312,24 @@ void AudioTape::Asr_Audio() {
                 decoder1->AudioChunkIn(chunkRef);
                 decoder1->AudioChunkOut(tmpChunkRef);  
 
-
-
                 if (tmpChunkRef.get()) {
                     int size = tmpChunkRef->GetNumSamples() * 2;
                     total_size += size;
                     packages_num++;
-
                     CStdString logMsg;
                     logMsg.Format(" send voice package num %d", packages_num);
                     LOG4CXX_INFO(LOG.tapeLog, logMsg);
                     fwrite(tmpChunkRef->m_pBuffer, tmpChunkRef->GetNumSamples(), 2 , stream_file);
                     asrPortalRef->send_voice_stream((char*)(tmpChunkRef->m_pBuffer), size);
-                    if (packages_num % 10 == 0) {
-                      LOG4CXX_INFO(LOG.tapeLog, " get asr result");
-                      asrPortalRef->read_call_back();
-                    }
+                    //if (packages_num % 10 == 0) {
+                      //LOG4CXX_INFO(LOG.tapeLog, " start read asr result ");
+                      //asrPortalRef->read_call_back();
+                      //LOG4CXX_INFO(LOG.tapeLog, " end read asr result ");
+                    //}
                     fflush(stream_file);
                 }
+                LOG4CXX_INFO(LOG.tapeLog, " start send voice to asr engine");
+                usleep(200);
             }
             //call asr 接口
             Call_Asr();
@@ -534,21 +552,18 @@ void AudioTape::AddCaptureEvent(CaptureEventRef eventRef, bool send)
                         ext = eventRef->ext;
 			GenerateCaptureFilePathAndIdentifier();
 		}
-                LOG4CXX_INFO(LOG.tapeLog, "EtStart ================");
+        logMsg.Format(" EtStart portId %s",m_portId);
+        LOG4CXX_INFO(LOG.tapeLog, logMsg);
 		break;
 	case CaptureEvent::EtStop:
+                logMsg.Format(" EtStop portId %s",m_portId);
+                LOG4CXX_INFO(LOG.tapeLog, logMsg);
+                asrPortalRef->uninit_asr();
 		m_shouldStop = true;
 		logMsg.Format("pushcount:%d popcount:%d highmark:%d", m_pushCount, m_popCount, m_highMark);
 		LOG4CXX_DEBUG(LOG.tapeLog, logMsg);
-        LOG4CXX_INFO(LOG.tapeLog, "EtStop check siltent voice");
-	    //m_audioFileRef->Close();
-        {
-          fseek(stream_file, SEEK_SET, 0);
-          char* buffer = new char[total_size];
-          fread(buffer, 1, total_size, stream_file);
-          asrPortalRef->send_voice_stream(buffer, total_size);
-        }
-        fclose(stream_file);
+	        //m_audioFileRef->Close();
+                fclose(stream_file);
 		m_duration = eventRef->m_timestamp - m_beginDate;
 		//outFileRef->Close();
       		if((CONFIG.m_remotePartyMaxDigits > 0) && (m_remoteParty.length() > CONFIG.m_remotePartyMaxDigits) && (m_remoteParty.CompareNoCase(m_remoteIp) != 0))

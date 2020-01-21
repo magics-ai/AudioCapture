@@ -131,8 +131,8 @@ void ImmediateProcessing::ThreadHandler()
 				//LOG4CXX_INFO(LOG.immediateProcessingLog, "Previous:" + lastHandled + " Current:" + audioTapeRef->m_portId);
 				//kexin  
 				lastHandled = audioTapeRef->m_portId;
-                                audioTapeRef->Asr_Audio(); 
-                                /*
+                audioTapeRef->Asr_Audio(); 
+                /*
 				audioTapeRef->Write();
                                  
 				if (audioTapeRef->IsReadyForBatchProcessing())
