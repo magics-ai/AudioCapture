@@ -4,7 +4,7 @@ AUTOMAKE_OPTIONS = foreign 1.4
 
 
 lib_LTLIBRARIES = liborkbase.la
-liborkbase_la_LDFLAGS =  -lapr-1 -lpthread  -laudio_streaming_client
+liborkbase_la_LDFLAGS =  -lapr-1 -lpthread  -laudio_streaming_client -lrdkafka++
 liborkbase_la_SOURCES = Filter.cpp g711.c \
 			OrkBase.cpp Object.cpp ObjectFactory.cpp \
 			OrkClient.cpp AudioCapture.cpp Utils.cpp  \
@@ -17,7 +17,7 @@ liborkbase_la_SOURCES = Filter.cpp g711.c \
 			Reporting.cpp TapeFileNaming.cpp \
 			PartyFilter.cpp EventStreaming.cpp \
 			OrkTrack.cpp SocketStreamer.cpp	\
-			SizedBuffer.cpp DirectionSelector.cpp BDAsr.cpp 
+			SizedBuffer.cpp DirectionSelector.cpp BDAsr.cpp kafka_asr.cpp 
 			
 #INCLUDES = -I/projects/ext/xmlrpc++/xmlrpc++0.7/src
 INCLUDES = -I/opt/opus/include/opus -I/usr/include/apr-1 -I/usr/include/apr-1.0

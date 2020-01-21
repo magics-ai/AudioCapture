@@ -54,6 +54,7 @@
 #include "OpusCodec.h"
 #include <thread>
 #include "apr_signal.h"
+#include "kafka_asr.h"
 
 static volatile bool serviceStop = false;
 
@@ -298,6 +299,18 @@ void MainThread()
 		logMsg.Format("Failed to start ImmediateProcessing thread reason:%s",  ex.what());
 		LOG4CXX_ERROR(LOG.rootLog, logMsg);	
 	}
+
+        LOG4CXX_INFO(LOG.rootLog, "init kafka producer engine");
+	AsrKafka* pAsrKafka = AsrKafka::GetInstance();
+        pAsrKafka->instance();
+        CStdString msg = "this is a message";
+        CStdString msg1 = "this is another message";
+        pAsrKafka->push_msg(msg);
+        pAsrKafka->push_msg(msg1);
+
+        
+
+
 	//批处理模块
 	if(CONFIG.m_storageAudioFormat != FfNative)
 	{
@@ -391,7 +404,7 @@ void MainThread()
 	SetUnhandledExceptionFilter((LPTOP_LEVEL_EXCEPTION_FILTER)ExceptionFilter);
 #endif
 	//*****
-
+        pAsrKafka->uninstance();
 	LOG4CXX_INFO(LOG.rootLog, CStdString("Service stopped"));
 	OrkLogManager::Instance()->Shutdown();
 }

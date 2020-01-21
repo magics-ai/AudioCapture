@@ -242,6 +242,8 @@ void Config::Define(Serializer* s)
     s->StringValue("AsrProductId", m_asr_product_id);
     s->StringValue("AsrUser", m_asr_user);
     s->StringValue("AsrPasswd", m_asr_pwd);
+    s->StringValue("KafkaPortal",m_kafka_portal);
+    s->StringValue("KafkaTopic", m_kafka_topic);
 }
 
 void Config::Validate()

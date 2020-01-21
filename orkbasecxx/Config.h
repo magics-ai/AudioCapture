@@ -264,6 +264,9 @@ public:
     CStdString m_asr_product_id;
     CStdString m_asr_user;
     CStdString m_asr_pwd; 
+    
+    CStdString m_kafka_portal {""};
+    CStdString m_kafka_topic {"" };
 private:
 	log4cxx::LoggerPtr m_log;
 	CStdString m_audioFilePermissionsStr;

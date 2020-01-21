@@ -46,7 +46,8 @@ public:
 	LoggerPtr reporting;
 	LoggerPtr ipfragmentation;
 	LoggerPtr messaging;
-    LoggerPtr asrLog;
+        LoggerPtr asrLog;
+        LoggerPtr kafkaLog;
 
 private:
 	static OrkLogManager m_orkLogManager;
