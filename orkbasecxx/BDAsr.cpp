@@ -1,6 +1,7 @@
 #include "BDAsr.h"
 #include "LogManager.h"
 #include "ConfigManager.h"
+#include "kafka_asr.h"
 
 
 void default_callback(AudioFragmentResponse& resp, 
@@ -15,16 +16,21 @@ void default_callback(AudioFragmentResponse& resp,
     }
     if (resp.type() == com::baidu::acu::pie::FRAGMENT_DATA) {
         AudioFragmentResult *audio_fragment = resp.mutable_audio_fragment();
+        /*
         ss << "Receive " << (audio_fragment->completed() ? "completed" : "uncompleted")
            << ", serial_num=" << audio_fragment->serial_num()
            << ", start=" << audio_fragment->start_time()
            << ", end=" << audio_fragment->end_time()
            << ", error_code=" << resp.error_code()
            << ", error_message=" << resp.error_message()
-           << ", content=" << audio_fragment->result();
-        std::cout << ss.str() << std::endl;
+           << ", content=" << audio_fragment->result();*/
+        //std::cout << ss.str() << std::endl;
+        AsrKafka* pKafka = AsrKafka::GetInstance();
+        CStdString msg(audio_fragment->result());
+        pKafka->push_msg(msg); 
+
         CStdString logMsg;
-        logMsg.Format(" read content %s", audio_fragment->result());
+        logMsg.Format(" read content %s",msg /* audio_fragment->result()*/);
         LOG4CXX_INFO(LOG.asrLog, logMsg);
     } else {
         std::stringstream ss;
