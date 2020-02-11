@@ -218,7 +218,7 @@ void MainThread()
 	OrkLogManager::Instance()->Initialize();
 	LOG4CXX_INFO(LOG.rootLog, CStdString("\n\nOrkAudio service starting\n"));
         
-        LOG4CXX_INFO(LOG.rootLog, CStdString(" ConfigManager Initialize"));
+    LOG4CXX_INFO(LOG.rootLog, CStdString(" ConfigManager Initialize"));
 	ConfigManager::Instance()->Initialize();
 
 	// Initialize object factory and register existing objects
@@ -300,15 +300,9 @@ void MainThread()
 		LOG4CXX_ERROR(LOG.rootLog, logMsg);	
 	}
 
-        LOG4CXX_INFO(LOG.rootLog, "init kafka producer engine");
+    LOG4CXX_INFO(LOG.rootLog, "init kafka producer engine");
 	AsrKafka* pAsrKafka = AsrKafka::GetInstance();
-        pAsrKafka->instance();
-        CStdString msg = "this is a message";
-        CStdString msg1 = "this is another message";
-        pAsrKafka->push_msg(msg);
-        pAsrKafka->push_msg(msg1);
-        CStdString msg2 = "您好";
-        pAsrKafka->push_msg(msg2);
+    pAsrKafka->instance();
         
 
 
